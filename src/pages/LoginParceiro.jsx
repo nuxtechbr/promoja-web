@@ -14,13 +14,15 @@ export default function LoginParceiro() {
     event.preventDefault();
     setCarregando(true);
 
+    const emailFormatado = email.trim().toLowerCase();
+
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: emailFormatado,
       password: senha,
     });
 
     if (error) {
-      alert(error.message);
+      alert("E-mail ou senha inválidos.");
       setCarregando(false);
       return;
     }
@@ -52,7 +54,7 @@ export default function LoginParceiro() {
         <ArrowLeft size={22} />
       </Link>
 
-      <section className="mt-8">
+      <section className="mt-8" translate="no">
         <div className="bg-[#1C1C1C] text-white rounded-[32px] p-6 shadow-xl">
           <img
             src="/logo-promoja.png"
@@ -77,7 +79,7 @@ export default function LoginParceiro() {
             required
             placeholder="E-mail"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value.toLowerCase())}
             className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
           />
 

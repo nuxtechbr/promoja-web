@@ -29,15 +29,18 @@ export default function CriarSenhaParceiro() {
       return;
     }
 
-    if (restaurante.email !== email) {
+    if (
+  restaurante.email.toLowerCase() !==
+  email.toLowerCase().trim()
+) {
       alert("Este e-mail não corresponde ao cadastro do restaurante.");
       setCarregando(false);
       return;
     }
 
     const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password: senha,
+      email: email.toLowerCase().trim(),
+password: senha,
     });
 
     if (authError) {
@@ -94,7 +97,10 @@ export default function CriarSenhaParceiro() {
             required
             placeholder="E-mail usado no cadastro"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) =>
+  setEmail(e.target.value.toLowerCase())
+}
+
             className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
           />
 
