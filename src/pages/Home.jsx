@@ -6,11 +6,11 @@ import {
   MoreVertical,
   X,
   Ticket,
+  Heart,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "../services/supabase";
 import BottomNav from "../components/BottomNav";
-import { calcularTempoRestante } from "../utils/tempo";
 
 export default function Home() {
   const [promocoes, setPromocoes] = useState([]);
@@ -19,6 +19,7 @@ export default function Home() {
   const [usuarioEmail, setUsuarioEmail] = useState("Visitante");
   const [economiaMes, setEconomiaMes] = useState(0);
   const [busca, setBusca] = useState("");
+  const [favoritos, setFavoritos] = useState([]);
 
   const categorias = [
     "Todos",
@@ -88,7 +89,6 @@ export default function Home() {
       if (promocao) {
         const antigo = converterPreco(promocao.preco_antigo);
         const novo = converterPreco(promocao.preco_promocional);
-
         totalEconomizado += antigo - novo;
       }
     }
@@ -114,6 +114,74 @@ export default function Home() {
     setPromocoes(data || []);
   }
 
+  async function carregarFavoritos() {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("favorites")
+      .select("*")
+      .eq("auth_user_id", user.id);
+
+    if (error) {
+      console.log(error);
+      alert(error.message);
+      return;
+    }
+
+    setFavoritos(data || []);
+  }
+
+  async function favoritarPromocao(promotionId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      alert("Faça login para favoritar.");
+      return;
+    }
+
+    const jaExiste = favoritos.find(
+      (item) => Number(item.promotion_id) === Number(promotionId)
+    );
+
+    if (jaExiste) {
+      const { error } = await supabase
+        .from("favorites")
+        .delete()
+        .eq("id", jaExiste.id);
+
+      if (error) {
+        console.log(error);
+        alert(error.message);
+        return;
+      }
+
+      await carregarFavoritos();
+      return;
+    }
+
+    const { error } = await supabase.from("favorites").insert([
+      {
+        auth_user_id: user.id,
+        promotion_id: promotionId,
+        created_at: new Date(),
+      },
+    ]);
+
+    if (error) {
+      console.log(error);
+      alert(error.message);
+      return;
+    }
+
+    await carregarFavoritos();
+  }
+
   async function sair() {
     await supabase.auth.signOut();
     window.location.href = "/login";
@@ -136,6 +204,7 @@ export default function Home() {
   useEffect(() => {
     carregarUsuario();
     carregarPromocoes();
+    carregarFavoritos();
   }, []);
 
   return (
@@ -276,57 +345,72 @@ export default function Home() {
             </div>
           )}
 
-          {promocoesFiltradas.map((promo) => (
-            <div
-              key={promo.id}
-              className="bg-white rounded-[28px] overflow-hidden shadow-sm hover:shadow-xl transition-all"
-            >
-              <img
-                src={promo.imagem_url}
-                className="h-44 w-full object-cover"
-                alt={promo.titulo}
-              />
+          {promocoesFiltradas.map((promo) => {
+            const favoritoAtivo = favoritos.find(
+              (item) => Number(item.promotion_id) === Number(promo.id)
+            );
 
-              <div className="p-4">
-               <span className="text-xs font-black bg-[#FF5A1F] text-white px-3 py-1 rounded-full">
-  🔥{" "}
-  {Math.round(
-    ((Number(promo.preco_antigo) -
-      Number(promo.preco_promocional)) /
-      Number(promo.preco_antigo)) *
-      100
-  )}
-  % OFF
-</span>
+            return (
+              <div
+                key={promo.id}
+                className="bg-white rounded-[28px] overflow-hidden shadow-sm hover:shadow-xl transition-all"
+              >
+                <div className="relative">
+                  <img
+                    src={promo.imagem_url}
+                    className="h-44 w-full object-cover"
+                    alt={promo.titulo}
+                  />
 
-                <h3 className="text-lg font-black mt-3">{promo.titulo}</h3>
-
-                <p className="text-sm text-zinc-500 flex items-center gap-1 mt-1">
-                  <MapPin size={14} />
-                  PromoJá
-                </p>
-
-                <div className="flex items-end justify-between mt-4">
-                  <div>
-                    <p className="text-sm line-through text-zinc-400">
-                      R$ {promo.preco_antigo}
-                    </p>
-
-                    <p className="text-2xl font-black text-[#FF5A1F]">
-                      R$ {promo.preco_promocional}
-                    </p>
-                  </div>
-
-                  <a
-                    href={`/promocao/${promo.id}`}
-                    className="bg-[#1C1C1C] hover:bg-[#FF5A1F] transition-all text-white px-5 py-3 rounded-2xl font-black text-sm"
+                  <button
+                    onClick={() => favoritarPromocao(promo.id)}
+                    className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm hover:bg-[#FFE5DB] transition-all w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg"
                   >
-                    Pegar agora
-                  </a>
+                    <Heart
+                      size={22}
+                      className={
+                        favoritoAtivo
+                          ? "fill-[#FF5A1F] text-[#FF5A1F]"
+                          : "text-[#FF5A1F]"
+                      }
+                    />
+                  </button>
+                </div>
+
+                <div className="p-4">
+                  <span className="text-xs font-black bg-[#FF5A1F] text-white px-3 py-1 rounded-full">
+                    🔥 {promo.categoria || "Promoção"}
+                  </span>
+
+                  <h3 className="text-lg font-black mt-3">{promo.titulo}</h3>
+
+                  <p className="text-sm text-zinc-500 flex items-center gap-1 mt-1">
+                    <MapPin size={14} />
+                    PromoJá
+                  </p>
+
+                  <div className="flex items-end justify-between mt-4">
+                    <div>
+                      <p className="text-sm line-through text-zinc-400">
+                        R$ {promo.preco_antigo}
+                      </p>
+
+                      <p className="text-2xl font-black text-[#FF5A1F]">
+                        R$ {promo.preco_promocional}
+                      </p>
+                    </div>
+
+                    <a
+                      href={`/promocao/${promo.id}`}
+                      className="bg-[#1C1C1C] hover:bg-[#FF5A1F] transition-all text-white px-5 py-3 rounded-2xl font-black text-sm"
+                    >
+                      Pegar agora
+                    </a>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
