@@ -11,7 +11,7 @@ import CadastroRestaurante from "./pages/CadastroRestaurante";
 import PainelRestaurante from "./pages/PainelRestaurante";
 import NovaPromocao from "./pages/NovaPromocao";
 import AdminDashboard from "./pages/AdminDashboard";
-
+import CuponsRestaurante from "./pages/CuponsRestaurante";
 export default function App() {
   return (
     <BrowserRouter>
@@ -19,6 +19,11 @@ export default function App() {
         <Route path="/" element={<Home />} />
 
         <Route path="/login" element={<Login />} />
+
+        <Route
+  path="/parceiro/cupons"
+  element={<CuponsRestaurante />}
+/>
 
         <Route path="/cadastro" element={<CadastroUsuario />} />
 
