@@ -3,6 +3,7 @@ import { Mail, LogOut, Ticket, Wallet } from "lucide-react";
 import BottomNav from "../components/BottomNav";
 import { supabase } from "../services/supabase";
 
+
 export default function Perfil() {
   const [usuario, setUsuario] = useState(null);
   const [totalResgates, setTotalResgates] = useState(0);

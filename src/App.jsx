@@ -12,11 +12,16 @@ import PainelRestaurante from "./pages/PainelRestaurante";
 import NovaPromocao from "./pages/NovaPromocao";
 import AdminDashboard from "./pages/AdminDashboard";
 import CuponsRestaurante from "./pages/CuponsRestaurante";
+import CriarSenhaParceiro from "./pages/CriarSenhaParceiro";
+import LoginParceiro from "./pages/LoginParceiro";
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
+
+        <Route path="/parceiro/criar-senha" element={<CriarSenhaParceiro />} />
+<Route path="/parceiro/login" element={<LoginParceiro />} />
 
         <Route path="/login" element={<Login />} />
 

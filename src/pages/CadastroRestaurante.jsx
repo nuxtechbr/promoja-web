@@ -1,11 +1,17 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Store, CheckCircle, MessageCircle } from "lucide-react";
+import {
+  ArrowLeft,
+  Store,
+  CheckCircle,
+  MessageCircle,
+} from "lucide-react";
 import { supabase } from "../services/supabase";
 
 export default function CadastroRestaurante() {
   const [nome, setNome] = useState("");
   const [responsavel, setResponsavel] = useState("");
+  const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [categoria, setCategoria] = useState("");
   const [endereco, setEndereco] = useState("");
@@ -18,16 +24,21 @@ export default function CadastroRestaurante() {
     event.preventDefault();
     setCarregando(true);
 
+    const token = crypto.randomUUID();
+
     const { error } = await supabase.from("restaurants").insert([
       {
         nome,
         responsavel,
+        email,
         whatsapp_comercial: whatsapp,
         categoria,
         endereco,
         cidade,
         bairro,
         instagram,
+        setup_token: token,
+        status: "pendente",
         created_at: new Date(),
       },
     ]);
@@ -40,10 +51,37 @@ export default function CadastroRestaurante() {
       return;
     }
 
-    alert("Cadastro enviado com sucesso! Em breve entraremos em contato.");
+    const linkCriarSenha = `https://usepromoja.netlify.app/parceiro/criar-senha?token=${token}`;
+
+    const mensagem = encodeURIComponent(
+      `Olá! 🚀
+
+Seu restaurante foi cadastrado no PromoJá com sucesso.
+
+Agora finalize seu acesso criando sua senha no painel do parceiro:
+
+${linkCriarSenha}
+
+Depois disso você poderá:
+• Criar promoções
+• Validar cupons
+• Gerenciar seu restaurante
+
+Equipe PromoJá`
+    );
+
+    window.open(
+      `https://wa.me/55${whatsapp}?text=${mensagem}`,
+      "_blank"
+    );
+
+    alert(
+      "Cadastro enviado! Agora finalize seu acesso pelo WhatsApp."
+    );
 
     setNome("");
     setResponsavel("");
+    setEmail("");
     setWhatsapp("");
     setCategoria("");
     setEndereco("");
@@ -62,7 +100,11 @@ export default function CadastroRestaurante() {
       </Link>
 
       <section className="mt-6 bg-[#1C1C1C] text-white rounded-[32px] p-6 shadow-xl">
-        
+        <img
+          src="/logo-promoja.png"
+          alt="PromoJá"
+          className="h-20 object-contain mx-auto mb-4"
+        />
 
         <div className="bg-[#FF5A1F] w-16 h-16 rounded-3xl flex items-center justify-center mb-5">
           <Store size={32} />
@@ -80,16 +122,23 @@ export default function CadastroRestaurante() {
       <section className="mt-5 grid gap-3">
         <div className="bg-white rounded-2xl p-4 flex gap-3 shadow-sm">
           <CheckCircle className="text-[#FF5A1F]" />
-          <p className="text-sm font-bold">Mais visibilidade para suas promoções.</p>
+          <p className="text-sm font-bold">
+            Mais visibilidade para suas promoções.
+          </p>
         </div>
 
         <div className="bg-white rounded-2xl p-4 flex gap-3 shadow-sm">
           <MessageCircle className="text-[#FF5A1F]" />
-          <p className="text-sm font-bold">Clientes chamando direto no WhatsApp.</p>
+          <p className="text-sm font-bold">
+            Clientes chamando direto no WhatsApp.
+          </p>
         </div>
       </section>
 
-      <form onSubmit={cadastrarRestaurante} className="mt-6 space-y-4">
+      <form
+        onSubmit={cadastrarRestaurante}
+        className="mt-6 space-y-4"
+      >
         <input
           type="text"
           required
@@ -105,6 +154,15 @@ export default function CadastroRestaurante() {
           placeholder="Nome do responsável"
           value={responsavel}
           onChange={(e) => setResponsavel(e.target.value)}
+          className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
+        />
+
+        <input
+          type="email"
+          required
+          placeholder="E-mail do restaurante"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
           className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
         />
 
