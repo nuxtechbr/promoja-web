@@ -14,6 +14,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import CuponsRestaurante from "./pages/CuponsRestaurante";
 import CriarSenhaParceiro from "./pages/CriarSenhaParceiro";
 import LoginParceiro from "./pages/LoginParceiro";
+import LandingRestaurantes from "./pages/LandingRestaurantes";
 export default function App() {
   return (
     <BrowserRouter>
@@ -31,6 +32,8 @@ export default function App() {
 />
 
         <Route path="/cadastro" element={<CadastroUsuario />} />
+
+<Route path="/restaurantes" element={<LandingRestaurantes />} />
 
         <Route path="/perfil" element={<Perfil />} />
 

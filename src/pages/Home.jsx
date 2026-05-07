@@ -53,6 +53,19 @@ export default function Home() {
     return Number(texto);
   }
 
+  function promocaoDisponivel(promo) {
+    const statusAtivo = promo.status === "Ativa";
+
+    const validadeOk =
+      !promo.validade || new Date(promo.validade).getTime() > Date.now();
+
+    const total = Number(promo.quantidade_total || 0);
+    const resgatada = Number(promo.quantidade_resgatada || 0);
+    const aindaTemCupom = total === 0 || resgatada < total;
+
+    return statusAtivo && validadeOk && aindaTemCupom;
+  }
+
   async function carregarUsuario() {
     const {
       data: { user },
@@ -100,13 +113,10 @@ export default function Home() {
   }
 
   async function carregarPromocoes() {
-    const agora = new Date().toISOString();
-
     const { data, error } = await supabase
       .from("promotions")
       .select("*")
       .eq("status", "Ativa")
-      .gte("validade", agora)
       .order("id", { ascending: false });
 
     if (error) {
@@ -114,7 +124,11 @@ export default function Home() {
       return;
     }
 
-    setPromocoes(data || []);
+    const disponiveis = (data || []).filter((promo) =>
+      promocaoDisponivel(promo)
+    );
+
+    setPromocoes(disponiveis);
   }
 
   async function carregarFavoritos() {
@@ -199,9 +213,7 @@ export default function Home() {
   }
 
   const promocoesFiltradas = promocoes.filter((promo) => {
-    const total = Number(promo.quantidade_total || 0);
-    const resgatada = Number(promo.quantidade_resgatada || 0);
-    const aindaTemCupom = total === 0 || resgatada < total;
+    if (!promocaoDisponivel(promo)) return false;
 
     const mesmaCategoria =
       categoriaAtiva === "Todos" || promo.categoria === categoriaAtiva;
@@ -213,7 +225,7 @@ export default function Home() {
       promo.descricao?.toLowerCase().includes(textoBusca) ||
       promo.categoria?.toLowerCase().includes(textoBusca);
 
-    return aindaTemCupom && mesmaCategoria && bateBusca;
+    return mesmaCategoria && bateBusca;
   });
 
   useEffect(() => {
@@ -352,10 +364,10 @@ export default function Home() {
         <div className="space-y-5">
           {promocoesFiltradas.length === 0 && (
             <div className="bg-white rounded-3xl p-6 text-center shadow-sm">
-              <p className="font-black">Nenhuma promoção encontrada.</p>
+              <p className="font-black">Nenhuma promoção disponível.</p>
 
               <p className="text-sm text-zinc-500 mt-1">
-                Tente outra categoria ou busca.
+                Promoções vencidas ou esgotadas somem automaticamente.
               </p>
             </div>
           )}
@@ -367,7 +379,7 @@ export default function Home() {
 
             const total = Number(promo.quantidade_total || 0);
             const resgatada = Number(promo.quantidade_resgatada || 0);
-            const restantes = total > 0 ? total - resgatada : null;
+            const restantes = total > 0 ? Math.max(total - resgatada, 0) : null;
 
             return (
               <div

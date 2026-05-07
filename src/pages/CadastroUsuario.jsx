@@ -19,8 +19,10 @@ export default function CadastroUsuario() {
     event.preventDefault();
     setCarregando(true);
 
+    const emailFormatado = email.toLowerCase().trim();
+
     const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
+      email: emailFormatado,
       password: senha,
     });
 
@@ -36,10 +38,12 @@ export default function CadastroUsuario() {
       {
         auth_id: authId,
         nome,
-        email,
+        data_nascimento: dataNascimento,
+        email: emailFormatado,
         whatsapp,
         cidade,
         bairro,
+        created_at: new Date(),
       },
     ]);
 
@@ -87,19 +91,25 @@ export default function CadastroUsuario() {
             className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
           />
 
-          <input
-            type="date"
-            required
-            value={dataNascimento}
-            onChange={(e) => setDataNascimento(e.target.value)}
-            className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
-          />
+          <div>
+            <label className="text-sm font-black text-zinc-600 mb-2 block">
+              Data de nascimento
+            </label>
+
+            <input
+              type="date"
+              required
+              value={dataNascimento}
+              onChange={(e) => setDataNascimento(e.target.value)}
+              className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
+            />
+          </div>
 
           <input
             type="email"
             required
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value.toLowerCase())}
             placeholder="E-mail"
             className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
           />
