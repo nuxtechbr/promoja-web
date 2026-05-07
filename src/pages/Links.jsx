@@ -1,9 +1,4 @@
-import {
-  Instagram,
-  MessageCircle,
-  Store,
-  UtensilsCrossed,
-} from "lucide-react";
+import { MessageCircle, Store, UtensilsCrossed, Camera } from "lucide-react";
 
 export default function Links() {
   return (
@@ -47,7 +42,7 @@ export default function Links() {
             target="_blank"
             className="bg-[#1d1d1d] hover:bg-[#2a2a2a] transition-all duration-300 text-white font-semibold rounded-2xl p-4 flex items-center justify-center gap-3"
           >
-            <Instagram size={22} />
+            <Camera size={22} />
             Instagram Oficial
           </a>
 
