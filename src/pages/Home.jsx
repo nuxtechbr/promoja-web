@@ -12,6 +12,7 @@ import {
 import { Link } from "react-router-dom";
 import { supabase } from "../services/supabase";
 import BottomNav from "../components/BottomNav";
+import BotaoNotificacao from "../components/BotaoNotificacao";
 
 export default function Home() {
   const [promocoes, setPromocoes] = useState([]);
@@ -360,6 +361,10 @@ export default function Home() {
           />
         </div>
       </section>
+
+      <section className="px-5 mt-5">
+  <BotaoNotificacao />
+</section>
 
       <section className="px-5 mt-6">
         <div className="bg-white rounded-2xl p-1 flex gap-1 shadow-sm">
