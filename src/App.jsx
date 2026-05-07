@@ -15,6 +15,7 @@ import CuponsRestaurante from "./pages/CuponsRestaurante";
 import CriarSenhaParceiro from "./pages/CriarSenhaParceiro";
 import LoginParceiro from "./pages/LoginParceiro";
 import LandingRestaurantes from "./pages/LandingRestaurantes";
+import Links from "./pages/Links";
 export default function App() {
   return (
     <BrowserRouter>
@@ -25,6 +26,7 @@ export default function App() {
 <Route path="/parceiro/login" element={<LoginParceiro />} />
 
         <Route path="/login" element={<Login />} />
+        <Route path="/links" element={<Links />} />
 
         <Route
   path="/parceiro/cupons"

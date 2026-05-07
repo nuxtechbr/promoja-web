@@ -7,6 +7,7 @@ import {
   X,
   Ticket,
   Heart,
+  AlertCircle,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "../services/supabase";
@@ -15,6 +16,7 @@ import BottomNav from "../components/BottomNav";
 export default function Home() {
   const [promocoes, setPromocoes] = useState([]);
   const [categoriaAtiva, setCategoriaAtiva] = useState("Todos");
+  const [filtroDisponibilidade, setFiltroDisponibilidade] = useState("todos");
   const [menuAberto, setMenuAberto] = useState(false);
   const [usuarioEmail, setUsuarioEmail] = useState("Visitante");
   const [economiaMes, setEconomiaMes] = useState(0);
@@ -53,17 +55,45 @@ export default function Home() {
     return Number(texto);
   }
 
-  function promocaoDisponivel(promo) {
-    const statusAtivo = promo.status === "Ativa";
-
-    const validadeOk =
-      !promo.validade || new Date(promo.validade).getTime() > Date.now();
-
+  function promocaoEsgotada(promo) {
     const total = Number(promo.quantidade_total || 0);
     const resgatada = Number(promo.quantidade_resgatada || 0);
-    const aindaTemCupom = total === 0 || resgatada < total;
 
-    return statusAtivo && validadeOk && aindaTemCupom;
+    return total > 0 && resgatada >= total;
+  }
+
+  function promocaoVencida(promo) {
+    if (!promo.validade) return false;
+
+    return new Date(promo.validade).getTime() <= Date.now();
+  }
+
+  function promocaoDisponivel(promo) {
+    return (
+      promo.status === "Ativa" &&
+      !promocaoVencida(promo) &&
+      !promocaoEsgotada(promo)
+    );
+  }
+
+  function fraseUrgencia(promo) {
+    const total = Number(promo.quantidade_total || 0);
+    const resgatada = Number(promo.quantidade_resgatada || 0);
+    const restantes = total > 0 ? total - resgatada : null;
+
+    if (promocaoEsgotada(promo)) {
+      return "Essa acabou rápido. Fique atento às próximas.";
+    }
+
+    if (restantes !== null && restantes <= 3) {
+      return "Últimas unidades. Pode acabar a qualquer momento.";
+    }
+
+    if (restantes !== null && restantes <= 10) {
+      return "Alta procura nesta oferta.";
+    }
+
+    return "Oferta limitada por tempo determinado.";
   }
 
   async function carregarUsuario() {
@@ -124,11 +154,7 @@ export default function Home() {
       return;
     }
 
-    const disponiveis = (data || []).filter((promo) =>
-      promocaoDisponivel(promo)
-    );
-
-    setPromocoes(disponiveis);
+    setPromocoes(data || []);
   }
 
   async function carregarFavoritos() {
@@ -213,8 +239,6 @@ export default function Home() {
   }
 
   const promocoesFiltradas = promocoes.filter((promo) => {
-    if (!promocaoDisponivel(promo)) return false;
-
     const mesmaCategoria =
       categoriaAtiva === "Todos" || promo.categoria === categoriaAtiva;
 
@@ -225,7 +249,10 @@ export default function Home() {
       promo.descricao?.toLowerCase().includes(textoBusca) ||
       promo.categoria?.toLowerCase().includes(textoBusca);
 
-    return mesmaCategoria && bateBusca;
+    const passaDisponibilidade =
+      filtroDisponibilidade === "todos" || promocaoDisponivel(promo);
+
+    return mesmaCategoria && bateBusca && passaDisponibilidade;
   });
 
   useEffect(() => {
@@ -313,7 +340,7 @@ export default function Home() {
             <h2 className="text-3xl font-black">Promoções da sua cidade</h2>
 
             <p className="text-sm text-zinc-300 mt-1">
-              Economize hoje com ofertas relâmpago.
+              Ofertas limitadas. Quando acabar, acabou.
             </p>
           </div>
 
@@ -335,6 +362,32 @@ export default function Home() {
       </section>
 
       <section className="px-5 mt-6">
+        <div className="bg-white rounded-2xl p-1 flex gap-1 shadow-sm">
+          <button
+            onClick={() => setFiltroDisponibilidade("todos")}
+            className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${
+              filtroDisponibilidade === "todos"
+                ? "bg-[#1C1C1C] text-white"
+                : "text-zinc-500"
+            }`}
+          >
+            Todos
+          </button>
+
+          <button
+            onClick={() => setFiltroDisponibilidade("disponiveis")}
+            className={`flex-1 py-3 rounded-xl text-sm font-black transition-all ${
+              filtroDisponibilidade === "disponiveis"
+                ? "bg-[#FF5A1F] text-white"
+                : "text-zinc-500"
+            }`}
+          >
+            Disponíveis
+          </button>
+        </div>
+      </section>
+
+      <section className="px-5 mt-5">
         <div className="flex gap-3 overflow-x-auto pb-2">
           {categorias.map((item) => (
             <button
@@ -364,10 +417,10 @@ export default function Home() {
         <div className="space-y-5">
           {promocoesFiltradas.length === 0 && (
             <div className="bg-white rounded-3xl p-6 text-center shadow-sm">
-              <p className="font-black">Nenhuma promoção disponível.</p>
+              <p className="font-black">Nenhuma promoção encontrada.</p>
 
               <p className="text-sm text-zinc-500 mt-1">
-                Promoções vencidas ou esgotadas somem automaticamente.
+                Tente outra categoria ou busca.
               </p>
             </div>
           )}
@@ -380,11 +433,16 @@ export default function Home() {
             const total = Number(promo.quantidade_total || 0);
             const resgatada = Number(promo.quantidade_resgatada || 0);
             const restantes = total > 0 ? Math.max(total - resgatada, 0) : null;
+            const esgotada = promocaoEsgotada(promo);
+            const vencida = promocaoVencida(promo);
+            const indisponivel = esgotada || vencida;
 
             return (
               <div
                 key={promo.id}
-                className="bg-white rounded-[28px] overflow-hidden shadow-sm hover:shadow-xl transition-all"
+                className={`bg-white rounded-[28px] overflow-hidden shadow-sm transition-all relative ${
+                  indisponivel ? "opacity-60 grayscale" : "hover:shadow-xl"
+                }`}
               >
                 <div className="relative">
                   <img
@@ -392,6 +450,15 @@ export default function Home() {
                     className="h-44 w-full object-cover"
                     alt={promo.titulo}
                   />
+
+                  {indisponivel && (
+                    <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
+                      <div className="bg-red-600 text-white px-5 py-3 rounded-2xl font-black flex items-center gap-2 shadow-xl">
+                        <X size={22} />
+                        {esgotada ? "PROMOÇÃO ESGOTADA" : "PROMOÇÃO ENCERRADA"}
+                      </div>
+                    </div>
+                  )}
 
                   <button
                     onClick={() => favoritarPromocao(promo.id)}
@@ -414,9 +481,23 @@ export default function Home() {
                       🔥 {calcularDesconto(promo)}% OFF
                     </span>
 
-                    {restantes !== null && (
-                      <span className="text-xs font-black bg-[#1C1C1C] text-white px-3 py-1 rounded-full">
-                        {restantes} cupons restantes
+                    {restantes !== null && !indisponivel && (
+                      <span
+                        className={`text-xs font-black px-3 py-1 rounded-full ${
+                          restantes <= 3
+                            ? "bg-red-100 text-red-700"
+                            : "bg-[#1C1C1C] text-white"
+                        }`}
+                      >
+                        {restantes <= 3
+                          ? `Últimos ${restantes} cupons`
+                          : `${restantes} cupons restantes`}
+                      </span>
+                    )}
+
+                    {indisponivel && (
+                      <span className="text-xs font-black bg-red-100 text-red-700 px-3 py-1 rounded-full">
+                        Esgotada
                       </span>
                     )}
                   </div>
@@ -427,6 +508,13 @@ export default function Home() {
                     <MapPin size={14} />
                     {promo.categoria || "Promoção"}
                   </p>
+
+                  <div className="mt-3 bg-[#FFF3EE] border border-[#FFD5C7] rounded-2xl p-3 flex gap-2">
+                    <AlertCircle className="text-[#FF5A1F] min-w-5" size={18} />
+                    <p className="text-xs font-bold text-zinc-700">
+                      {fraseUrgencia(promo)}
+                    </p>
+                  </div>
 
                   <div className="flex items-end justify-between mt-4">
                     <div>
@@ -439,12 +527,21 @@ export default function Home() {
                       </p>
                     </div>
 
-                    <Link
-                      to={`/promocao/${promo.id}`}
-                      className="bg-[#1C1C1C] hover:bg-[#FF5A1F] transition-all text-white px-5 py-3 rounded-2xl font-black text-sm"
-                    >
-                      Pegar agora
-                    </Link>
+                    {indisponivel ? (
+                      <button
+                        disabled
+                        className="bg-zinc-200 text-zinc-500 px-5 py-3 rounded-2xl font-black text-sm"
+                      >
+                        Encerrada
+                      </button>
+                    ) : (
+                      <Link
+                        to={`/promocao/${promo.id}`}
+                        className="bg-[#1C1C1C] hover:bg-[#FF5A1F] transition-all text-white px-5 py-3 rounded-2xl font-black text-sm"
+                      >
+                        Pegar agora
+                      </Link>
+                    )}
                   </div>
                 </div>
               </div>
