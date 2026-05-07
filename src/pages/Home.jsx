@@ -44,13 +44,13 @@ export default function Home() {
   function converterPreco(valor) {
     if (!valor) return 0;
 
-    return Number(
-      String(valor)
-        .replace("R$", "")
-        .replace(".", "")
-        .replace(",", ".")
-        .trim()
-    );
+    const texto = String(valor).replace("R$", "").trim();
+
+    if (texto.includes(",")) {
+      return Number(texto.replace(/\./g, "").replace(",", "."));
+    }
+
+    return Number(texto);
   }
 
   async function carregarUsuario() {
@@ -89,7 +89,10 @@ export default function Home() {
       if (promocao) {
         const antigo = converterPreco(promocao.preco_antigo);
         const novo = converterPreco(promocao.preco_promocional);
-        totalEconomizado += antigo - novo;
+
+        if (antigo > novo) {
+          totalEconomizado += antigo - novo;
+        }
       }
     }
 
@@ -128,7 +131,6 @@ export default function Home() {
 
     if (error) {
       console.log(error);
-      alert(error.message);
       return;
     }
 
@@ -187,7 +189,20 @@ export default function Home() {
     window.location.href = "/login";
   }
 
+  function calcularDesconto(promo) {
+    const antigo = converterPreco(promo.preco_antigo);
+    const novo = converterPreco(promo.preco_promocional);
+
+    if (!antigo || !novo || antigo <= novo) return 0;
+
+    return Math.round(((antigo - novo) / antigo) * 100);
+  }
+
   const promocoesFiltradas = promocoes.filter((promo) => {
+    const total = Number(promo.quantidade_total || 0);
+    const resgatada = Number(promo.quantidade_resgatada || 0);
+    const aindaTemCupom = total === 0 || resgatada < total;
+
     const mesmaCategoria =
       categoriaAtiva === "Todos" || promo.categoria === categoriaAtiva;
 
@@ -198,7 +213,7 @@ export default function Home() {
       promo.descricao?.toLowerCase().includes(textoBusca) ||
       promo.categoria?.toLowerCase().includes(textoBusca);
 
-    return mesmaCategoria && bateBusca;
+    return aindaTemCupom && mesmaCategoria && bateBusca;
   });
 
   useEffect(() => {
@@ -350,6 +365,10 @@ export default function Home() {
               (item) => Number(item.promotion_id) === Number(promo.id)
             );
 
+            const total = Number(promo.quantidade_total || 0);
+            const resgatada = Number(promo.quantidade_resgatada || 0);
+            const restantes = total > 0 ? total - resgatada : null;
+
             return (
               <div
                 key={promo.id}
@@ -378,15 +397,23 @@ export default function Home() {
                 </div>
 
                 <div className="p-4">
-                  <span className="text-xs font-black bg-[#FF5A1F] text-white px-3 py-1 rounded-full">
-                    🔥 {promo.categoria || "Promoção"}
-                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="text-xs font-black bg-[#FF5A1F] text-white px-3 py-1 rounded-full">
+                      🔥 {calcularDesconto(promo)}% OFF
+                    </span>
+
+                    {restantes !== null && (
+                      <span className="text-xs font-black bg-[#1C1C1C] text-white px-3 py-1 rounded-full">
+                        {restantes} cupons restantes
+                      </span>
+                    )}
+                  </div>
 
                   <h3 className="text-lg font-black mt-3">{promo.titulo}</h3>
 
                   <p className="text-sm text-zinc-500 flex items-center gap-1 mt-1">
                     <MapPin size={14} />
-                    PromoJá
+                    {promo.categoria || "Promoção"}
                   </p>
 
                   <div className="flex items-end justify-between mt-4">
@@ -400,12 +427,12 @@ export default function Home() {
                       </p>
                     </div>
 
-                    <a
-                      href={`/promocao/${promo.id}`}
+                    <Link
+                      to={`/promocao/${promo.id}`}
                       className="bg-[#1C1C1C] hover:bg-[#FF5A1F] transition-all text-white px-5 py-3 rounded-2xl font-black text-sm"
                     >
                       Pegar agora
-                    </a>
+                    </Link>
                   </div>
                 </div>
               </div>

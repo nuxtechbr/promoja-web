@@ -51,7 +51,7 @@ export default function CadastroRestaurante() {
       return;
     }
 
-    const linkCriarSenha = `https://usepromoja.netlify.app/parceiro/criar-senha?token=${token}`;
+    const linkCriarSenha = `https://usepromoja.com.br/parceiro/criar-senha?token=${token}`;
 
     const mensagem = encodeURIComponent(
       `Olá! 🚀
