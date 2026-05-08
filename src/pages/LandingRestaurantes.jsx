@@ -40,23 +40,13 @@ export default function LandingRestaurantes() {
     const emailFormatado =
       email.toLowerCase().trim();
 
-    const { error } =
-      await supabase
-        .from("partner_leads")
-        .insert([
-          {
-            nome_estabelecimento:
-              nome,
-
-            email:
-              emailFormatado,
-
-            whatsapp,
-
-            created_at:
-              new Date(),
-          },
-        ]);
+    await supabase.from("leads_restaurantes").insert([
+  {
+    nome,
+    email,
+    whatsapp,
+  },
+]);
 
     if (error) {
       console.log(error);
