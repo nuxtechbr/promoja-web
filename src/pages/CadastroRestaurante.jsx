@@ -1,14 +1,19 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Store,
   CheckCircle,
   MessageCircle,
+  Eye,
+  EyeOff,
+  Lock,
 } from "lucide-react";
 import { supabase } from "../services/supabase";
 
 export default function CadastroRestaurante() {
+  const navigate = useNavigate();
+
   const [nome, setNome] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const [email, setEmail] = useState("");
@@ -18,27 +23,57 @@ export default function CadastroRestaurante() {
   const [cidade, setCidade] = useState("");
   const [bairro, setBairro] = useState("");
   const [instagram, setInstagram] = useState("");
+  const [senha, setSenha] = useState("");
+  const [confirmarSenha, setConfirmarSenha] = useState("");
+  const [mostrarSenha, setMostrarSenha] = useState(false);
+  const [mostrarConfirmarSenha, setMostrarConfirmarSenha] = useState(false);
   const [carregando, setCarregando] = useState(false);
 
   async function cadastrarRestaurante(event) {
     event.preventDefault();
     setCarregando(true);
 
-    const token = crypto.randomUUID();
+    const emailFormatado = email.toLowerCase().trim();
+
+    if (senha.length < 6) {
+      alert("A senha precisa ter pelo menos 6 caracteres.");
+      setCarregando(false);
+      return;
+    }
+
+    if (senha !== confirmarSenha) {
+      alert("As senhas não conferem.");
+      setCarregando(false);
+      return;
+    }
+
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: emailFormatado,
+      password: senha,
+    });
+
+    if (authError) {
+      console.log(authError);
+      alert(authError.message);
+      setCarregando(false);
+      return;
+    }
+
+    const authId = authData.user?.id;
 
     const { error } = await supabase.from("restaurants").insert([
       {
         nome,
         responsavel,
-        email,
+        email: emailFormatado,
         whatsapp_comercial: whatsapp,
         categoria,
         endereco,
         cidade,
         bairro,
         instagram,
-        setup_token: token,
-        status: "pendente",
+        auth_id: authId,
+        status: "ativo",
         created_at: new Date(),
       },
     ]);
@@ -51,43 +86,8 @@ export default function CadastroRestaurante() {
       return;
     }
 
-    const linkCriarSenha = `https://usepromoja.com.br/parceiro/criar-senha?token=${token}`;
-
-    const mensagem = encodeURIComponent(
-      `Olá! 🚀
-
-Seu restaurante foi cadastrado no PromoJá com sucesso.
-
-Agora finalize seu acesso criando sua senha no painel do parceiro:
-
-${linkCriarSenha}
-
-Depois disso você poderá:
-• Criar promoções
-• Validar cupons
-• Gerenciar seu restaurante
-
-Equipe PromoJá`
-    );
-
-    window.open(
-      `https://wa.me/55${whatsapp}?text=${mensagem}`,
-      "_blank"
-    );
-
-    alert(
-      "Cadastro enviado! Agora finalize seu acesso pelo WhatsApp."
-    );
-
-    setNome("");
-    setResponsavel("");
-    setEmail("");
-    setWhatsapp("");
-    setCategoria("");
-    setEndereco("");
-    setCidade("");
-    setBairro("");
-    setInstagram("");
+    alert("Cadastro criado com sucesso! Agora entre no painel do parceiro.");
+    navigate("/parceiro/login");
   }
 
   return (
@@ -111,11 +111,11 @@ Equipe PromoJá`
         </div>
 
         <h1 className="text-3xl font-black">
-          Coloque seu restaurante no PromoJá
+          Cadastre seu restaurante
         </h1>
 
         <p className="text-zinc-300 mt-3 leading-relaxed">
-          Cadastre seu negócio, publique promoções e receba clientes direto no WhatsApp.
+          Crie seu acesso, publique promoções e acompanhe seus cupons no painel do parceiro.
         </p>
       </section>
 
@@ -123,7 +123,7 @@ Equipe PromoJá`
         <div className="bg-white rounded-2xl p-4 flex gap-3 shadow-sm">
           <CheckCircle className="text-[#FF5A1F]" />
           <p className="text-sm font-bold">
-            Mais visibilidade para suas promoções.
+            Cadastro com acesso direto ao painel.
           </p>
         </div>
 
@@ -135,10 +135,7 @@ Equipe PromoJá`
         </div>
       </section>
 
-      <form
-        onSubmit={cadastrarRestaurante}
-        className="mt-6 space-y-4"
-      >
+      <form onSubmit={cadastrarRestaurante} className="mt-6 space-y-4">
         <input
           type="text"
           required
@@ -160,9 +157,9 @@ Equipe PromoJá`
         <input
           type="email"
           required
-          placeholder="E-mail do restaurante"
+          placeholder="E-mail de acesso ao painel"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value.toLowerCase())}
           className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
         />
 
@@ -182,12 +179,22 @@ Equipe PromoJá`
           className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
         >
           <option value="">Categoria do negócio</option>
-          <option value="Lanches">Lanches</option>
+          <option value="Hambúrguer">Hambúrguer</option>
           <option value="Pizza">Pizza</option>
           <option value="Açaí">Açaí</option>
-          <option value="Restaurante">Restaurante</option>
-          <option value="Bebidas">Bebidas</option>
+          <option value="Marmita">Marmita</option>
+          <option value="Sushi/Japonês">Sushi/Japonês</option>
+          <option value="Churrasco">Churrasco</option>
+          <option value="Frango">Frango</option>
+          <option value="Pastel">Pastel</option>
+          <option value="Esfiha">Esfiha</option>
+          <option value="Hot Dog">Hot Dog</option>
           <option value="Doces">Doces</option>
+          <option value="Sorvete">Sorvete</option>
+          <option value="Bebidas">Bebidas</option>
+          <option value="Padaria">Padaria</option>
+          <option value="Lanchonete">Lanchonete</option>
+          <option value="Restaurante">Restaurante</option>
           <option value="Outros">Outros</option>
         </select>
 
@@ -226,16 +233,75 @@ Equipe PromoJá`
           className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
         />
 
+        <section className="bg-white rounded-[28px] p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Lock className="text-[#FF5A1F]" />
+            <h2 className="font-black text-lg">
+              Crie sua senha de acesso
+            </h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="relative">
+              <input
+                type={mostrarSenha ? "text" : "password"}
+                required
+                placeholder="Crie uma senha"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                className="w-full bg-[#F7F7F7] rounded-2xl px-4 py-4 pr-12 outline-none"
+              />
+
+              <button
+                type="button"
+                onClick={() => setMostrarSenha(!mostrarSenha)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500"
+              >
+                {mostrarSenha ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
+
+            <div className="relative">
+              <input
+                type={mostrarConfirmarSenha ? "text" : "password"}
+                required
+                placeholder="Repita a senha"
+                value={confirmarSenha}
+                onChange={(e) => setConfirmarSenha(e.target.value)}
+                className="w-full bg-[#F7F7F7] rounded-2xl px-4 py-4 pr-12 outline-none"
+              />
+
+              <button
+                type="button"
+                onClick={() =>
+                  setMostrarConfirmarSenha(!mostrarConfirmarSenha)
+                }
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500"
+              >
+                {mostrarConfirmarSenha ? (
+                  <EyeOff size={20} />
+                ) : (
+                  <Eye size={20} />
+                )}
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-500">
+              Use essa senha para entrar no painel do parceiro.
+            </p>
+          </div>
+        </section>
+
         <button
           type="submit"
           disabled={carregando}
           className="w-full bg-[#FF5A1F] text-white py-4 rounded-2xl font-black text-lg shadow-lg"
         >
-          {carregando ? "Enviando..." : "Enviar cadastro"}
+          {carregando ? "Criando cadastro..." : "Criar cadastro e acesso"}
         </button>
 
         <p className="text-center text-xs text-zinc-500 pb-6">
-          Seu cadastro será analisado antes de liberar promoções no app.
+          Seu restaurante poderá publicar promoções após aprovação da equipe PromoJá.
         </p>
       </form>
     </main>

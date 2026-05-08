@@ -26,8 +26,7 @@ export default function App() {
 <Route path="/parceiro/login" element={<LoginParceiro />} />
 
         <Route path="/login" element={<Login />} />
-        <Route path="/links" element={<Links />} />
-
+<Route path="/links" element={<Links />} />
         <Route
   path="/parceiro/cupons"
   element={<CuponsRestaurante />}
