@@ -58,79 +58,162 @@ export default function NovaPromocao() {
   }
 
   async function criarPromocao(event) {
-    event.preventDefault();
+  event.preventDefault();
 
-    if (imagens.length === 0) {
-      alert("Adicione pelo menos 1 foto da promoção.");
+  if (imagens.length === 0) {
+    alert("Adicione pelo menos 1 foto da promoção.");
+    return;
+  }
+
+  setCarregando(true);
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      alert("Faça login novamente.");
       return;
     }
 
-    setCarregando(true);
+    const { data: restaurante } = await supabase
+      .from("restaurants")
+      .select("*")
+      .eq("auth_id", user.id)
+      .maybeSingle();
 
-    try {
-      const inicioDoDia = new Date();
-      inicioDoDia.setHours(0, 0, 0, 0);
-
-      const fimDoDia = new Date();
-      fimDoDia.setHours(23, 59, 59, 999);
-
-      const { data: promocoesHoje, error: erroPromocoesHoje } = await supabase
-        .from("promotions")
-        .select("*")
-        .eq("restaurant_id", 1)
-        .gte("created_at", inicioDoDia.toISOString())
-        .lte("created_at", fimDoDia.toISOString());
-
-      if (erroPromocoesHoje) {
-        throw erroPromocoesHoje;
-      }
-
-      if (promocoesHoje.length >= 2) {
-        alert(
-          "Este restaurante já criou 2 promoções hoje. Volte amanhã ou faça upgrade futuramente."
-        );
-        setCarregando(false);
-        return;
-      }
-
-      const urlsDasImagens = [];
-
-      for (const imagem of imagens) {
-        const url = await enviarImagemParaStorage(imagem);
-        urlsDasImagens.push(url);
-      }
-
-      const { error } = await supabase.from("promotions").insert([
-        {
-          titulo,
-          descricao,
-          preco_antigo: precoAntigo,
-          preco_promocional: precoPromocional,
-          imagem_url: urlsDasImagens[0],
-          categoria,
-          validade,
-          restaurant_id: 1,
-          quantidade_total: 30,
-          quantidade_resgatada: 0,
-          status: "pendente",
-          created_at: new Date(),
-        },
-      ]);
-
-      if (error) {
-        throw error;
-      }
-
-      alert("Promoção enviada para análise!");
-      window.location.href = "/parceiro/painel";
-    } catch (error) {
-      console.log(error);
-      alert(error.message);
+    if (!restaurante) {
+      alert("Restaurante não encontrado.");
+      return;
     }
 
-    setCarregando(false);
+    const inicioDoDia = new Date();
+    inicioDoDia.setHours(0, 0, 0, 0);
+
+    const fimDoDia = new Date();
+    fimDoDia.setHours(23, 59, 59, 999);
+
+    const {
+      data: promocoesHoje,
+      error: erroPromocoesHoje,
+    } = await supabase
+      .from("promotions")
+      .select("*")
+      .eq("restaurant_id", restaurante.id)
+      .gte("created_at", inicioDoDia.toISOString())
+      .lte("created_at", fimDoDia.toISOString());
+
+    if (erroPromocoesHoje) {
+      throw erroPromocoesHoje;
+    }
+
+    if (promocoesHoje.length >= 2) {
+      alert(
+        "Este restaurante já criou 2 promoções hoje."
+      );
+
+      setCarregando(false);
+
+      return;
+    }
+
+    const urlsDasImagens = [];
+
+    for (const imagem of imagens) {
+      const url =
+        await enviarImagemParaStorage(imagem);
+
+      urlsDasImagens.push(url);
+    }
+
+    const { data: promocaoCriada, error } =
+      await supabase
+        .from("promotions")
+        .insert([
+          {
+            titulo,
+            descricao,
+            preco_antigo: precoAntigo,
+            preco_promocional:
+              precoPromocional,
+            imagem_url: urlsDasImagens[0],
+            categoria,
+            validade,
+            restaurant_id: restaurante.id,
+            quantidade_total: 30,
+            quantidade_resgatada: 0,
+            status: "pendente",
+            created_at: new Date(),
+          },
+        ])
+        .select()
+        .single();
+
+    if (error) {
+      throw error;
+    }
+
+    try {
+      await fetch(
+        "https://nuxtechbr.app.n8n.cloud/webhook/promoja-promocao-analise",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            restaurante:
+              restaurante.nome,
+            responsavel:
+              restaurante.responsavel,
+            whatsapp: String(
+              restaurante.whatsapp_comercial ||
+                ""
+            ).replace(/\D/g, ""),
+            email: restaurante.email,
+
+            promocao_id:
+              promocaoCriada.id,
+
+            titulo,
+            descricao,
+            preco_antigo:
+              precoAntigo,
+            preco_promocional:
+              precoPromocional,
+            categoria,
+            validade,
+
+            imagem:
+              urlsDasImagens[0],
+
+            status: "pendente",
+          }),
+        }
+      );
+    } catch (webhookError) {
+      console.log(
+        "Erro webhook promoção:",
+        webhookError
+      );
+    }
+
+    alert(
+      "Promoção enviada para análise!"
+    );
+
+    window.location.href =
+      "/parceiro/painel";
+  } catch (error) {
+    console.log(error);
+
+    alert(error.message);
   }
 
+  setCarregando(false);
+}
   return (
     <main className="min-h-screen bg-[#F7F7F7] px-5 py-6 pb-10">
       <Link

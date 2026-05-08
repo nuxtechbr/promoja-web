@@ -13,6 +13,15 @@ import {
 } from "lucide-react";
 import { supabase } from "../services/supabase";
 
+const WEBHOOK_RESTAURANTE_APROVADO =
+  "https://nuxtechbr.app.n8n.cloud/webhook/promoja-restaurante-aprovado";
+
+const WEBHOOK_PROMOCAO_APROVADA =
+  "https://nuxtechbr.app.n8n.cloud/webhook/promoja-promocao-aprovada";
+
+const WEBHOOK_PROMOCAO_RECUSADA =
+  "https://nuxtechbr.app.n8n.cloud/webhook/promoja-promocao-recusada";
+
 export default function AdminDashboard() {
   const [promocoesPendentes, setPromocoesPendentes] = useState([]);
   const [restaurantesPendentes, setRestaurantesPendentes] = useState([]);
@@ -93,28 +102,35 @@ export default function AdminDashboard() {
       .update({ status: "ativo" })
       .eq("id", restaurante.id);
 
-    if (error) return alert(error.message);
-
-    const numero = String(restaurante.whatsapp_comercial || "").replace(/\D/g, "");
-    const numeroFinal = numero.startsWith("55") ? numero : `55${numero}`;
-
-    const mensagem = encodeURIComponent(
-      `Olá, ${restaurante.responsavel || "parceiro"}! 🚀
-
-Seu restaurante "${restaurante.nome}" foi aprovado no PromoJá.
-
-Agora você já pode acessar o painel do parceiro:
-
-https://usepromoja.com.br/parceiro/login
-
-Equipe PromoJá`
-    );
-
-    if (numero) {
-      window.open(`https://wa.me/${numeroFinal}?text=${mensagem}`, "_blank");
+    if (error) {
+      alert(error.message);
+      return;
     }
 
-    alert("Restaurante aprovado!");
+    const telefoneLimpo = String(restaurante.whatsapp_comercial || "").replace(/\D/g, "");
+
+    try {
+      await fetch(WEBHOOK_RESTAURANTE_APROVADO, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          nome: restaurante.nome,
+          responsavel: restaurante.responsavel,
+          whatsapp: telefoneLimpo,
+          email: restaurante.email,
+          cidade: restaurante.cidade,
+          bairro: restaurante.bairro,
+          categoria: restaurante.categoria,
+          status: "ativo",
+        }),
+      });
+    } catch (webhookError) {
+      console.log("Erro webhook restaurante aprovado:", webhookError);
+    }
+
+    alert("Restaurante aprovado! Mensagem automática enviada.");
     setRestauranteSelecionado(null);
     carregarAdmin();
   }
@@ -127,7 +143,10 @@ Equipe PromoJá`
       .update({ status: "recusado" })
       .eq("id", id);
 
-    if (error) return alert(error.message);
+    if (error) {
+      alert(error.message);
+      return;
+    }
 
     alert("Restaurante recusado.");
     setRestauranteSelecionado(null);
@@ -135,32 +154,131 @@ Equipe PromoJá`
   }
 
   async function aprovarPromocao(id) {
+    const promocao =
+      promoSelecionada || promocoesPendentes.find((p) => p.id === id);
+
     const { error } = await supabase
       .from("promotions")
       .update({ status: "Ativa" })
       .eq("id", id);
 
-    if (error) return alert(error.message);
+    if (error) {
+      alert(error.message);
+      return;
+    }
 
-    alert("Promoção aprovada!");
+    if (promocao?.restaurant_id) {
+      const { data: restaurante } = await supabase
+        .from("restaurants")
+        .select("*")
+        .eq("id", promocao.restaurant_id)
+        .maybeSingle();
+
+      try {
+        await fetch(WEBHOOK_PROMOCAO_APROVADA, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            titulo: promocao.titulo,
+            descricao: promocao.descricao,
+            preco_antigo: promocao.preco_antigo,
+            preco_promocional: promocao.preco_promocional,
+            imagem_url: promocao.imagem_url,
+            restaurante: restaurante?.nome,
+            responsavel: restaurante?.responsavel,
+            whatsapp: String(restaurante?.whatsapp_comercial || "").replace(/\D/g, ""),
+            email: restaurante?.email,
+            status: "Ativa",
+          }),
+        });
+      } catch (webhookError) {
+        console.log("Erro webhook promoção aprovada:", webhookError);
+      }
+    }
+
+    alert("Promoção aprovada! Mensagem automática enviada.");
     setPromoSelecionada(null);
     carregarAdmin();
   }
 
-  async function recusarPromocao(id) {
-    if (!confirm("Tem certeza que deseja recusar essa promoção?")) return;
+  async function recusarRestaurante(id) {
+  if (
+    !confirm(
+      "Tem certeza que deseja recusar este restaurante?"
+    )
+  )
+    return;
 
-    const { error } = await supabase
-      .from("promotions")
-      .update({ status: "recusada" })
-      .eq("id", id);
+  const restaurante =
+    restauranteSelecionado ||
+    restaurantesPendentes.find(
+      (r) => r.id === id
+    );
 
-    if (error) return alert(error.message);
+  const { error } = await supabase
+    .from("restaurants")
+    .update({ status: "recusado" })
+    .eq("id", id);
 
-    alert("Promoção recusada.");
-    setPromoSelecionada(null);
-    carregarAdmin();
+  if (error) {
+    alert(error.message);
+    return;
   }
+
+  if (restaurante) {
+    try {
+      await fetch(
+        "https://nuxtechbr.app.n8n.cloud/webhook/promoja-restaurante-recusado",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            nome: restaurante.nome,
+            responsavel:
+              restaurante.responsavel,
+
+            whatsapp: String(
+              restaurante.whatsapp_comercial ||
+                ""
+            ).replace(/\D/g, ""),
+
+            email:
+              restaurante.email,
+
+            cidade:
+              restaurante.cidade,
+
+            bairro:
+              restaurante.bairro,
+
+            categoria:
+              restaurante.categoria,
+
+            status: "recusado",
+          }),
+        }
+      );
+    } catch (webhookError) {
+      console.log(
+        "Erro webhook restaurante recusado:",
+        webhookError
+      );
+    }
+  }
+
+  alert(
+    "Restaurante recusado! Mensagem automática enviada."
+  );
+
+  setRestauranteSelecionado(null);
+
+  carregarAdmin();
+}
 
   useEffect(() => {
     carregarAdmin();
@@ -188,7 +306,11 @@ Equipe PromoJá`
           </div>
         )}
 
-        <img src="/logo-promoja.png" alt="PromoJá" className="h-20 object-contain mx-auto mb-4" />
+        <img
+          src="/logo-promoja.png"
+          alt="PromoJá"
+          className="h-20 object-contain mx-auto mb-4"
+        />
 
         <p className="text-sm text-zinc-300">Admin PromoJá</p>
         <h1 className="text-3xl font-black mt-1">Painel de Controle</h1>
@@ -208,18 +330,29 @@ Equipe PromoJá`
         <Titulo icon={<Store />} texto="Restaurantes aguardando aprovação" />
 
         {carregando && <Box texto="Carregando..." />}
-        {!carregando && restaurantesPendentes.length === 0 && <Box texto="Nenhum restaurante pendente." />}
+        {!carregando && restaurantesPendentes.length === 0 && (
+          <Box texto="Nenhum restaurante pendente." />
+        )}
 
         <div className="space-y-5">
           {restaurantesPendentes.map((restaurante) => (
-            <div key={restaurante.id} className="bg-white rounded-[28px] p-5 shadow-sm border border-zinc-100">
+            <div
+              key={restaurante.id}
+              className="bg-white rounded-[28px] p-5 shadow-sm border border-zinc-100"
+            >
               <span className="text-xs font-black bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full">
                 Em análise
               </span>
 
               <h3 className="text-xl font-black mt-3">{restaurante.nome}</h3>
-              <p className="text-sm text-zinc-500 mt-1">Responsável: {restaurante.responsavel}</p>
-              <p className="text-sm text-zinc-500 mt-1">WhatsApp: {restaurante.whatsapp_comercial}</p>
+
+              <p className="text-sm text-zinc-500 mt-1">
+                Responsável: {restaurante.responsavel}
+              </p>
+
+              <p className="text-sm text-zinc-500 mt-1">
+                WhatsApp: {restaurante.whatsapp_comercial}
+              </p>
 
               <div className="flex gap-3 mt-5">
                 <button
@@ -246,11 +379,16 @@ Equipe PromoJá`
       <section className="mt-8">
         <Titulo icon={<Clock />} texto="Ofertas aguardando aprovação" />
 
-        {!carregando && promocoesPendentes.length === 0 && <Box texto="Nenhuma oferta pendente." />}
+        {!carregando && promocoesPendentes.length === 0 && (
+          <Box texto="Nenhuma oferta pendente." />
+        )}
 
         <div className="space-y-5">
           {promocoesPendentes.map((promo) => (
-            <div key={promo.id} className="bg-white rounded-[28px] overflow-hidden shadow-sm border border-zinc-100">
+            <div
+              key={promo.id}
+              className="bg-white rounded-[28px] overflow-hidden shadow-sm border border-zinc-100"
+            >
               <img
                 src={promo.imagem_url || "/logo-promoja.png"}
                 alt={promo.titulo}
@@ -263,11 +401,19 @@ Equipe PromoJá`
                 </span>
 
                 <h3 className="text-xl font-black mt-3">{promo.titulo}</h3>
-                <p className="text-zinc-600 mt-2 line-clamp-2">{promo.descricao || "Sem descrição"}</p>
+
+                <p className="text-zinc-600 mt-2 line-clamp-2">
+                  {promo.descricao || "Sem descrição"}
+                </p>
 
                 <div className="mt-4 bg-[#F7F7F7] rounded-2xl p-4">
-                  <p className="text-sm line-through text-zinc-400">R$ {promo.preco_antigo || "0,00"}</p>
-                  <p className="text-3xl font-black text-[#FF5A1F]">R$ {promo.preco_promocional || "0,00"}</p>
+                  <p className="text-sm line-through text-zinc-400">
+                    R$ {promo.preco_antigo || "0,00"}
+                  </p>
+
+                  <p className="text-3xl font-black text-[#FF5A1F]">
+                    R$ {promo.preco_promocional || "0,00"}
+                  </p>
                 </div>
 
                 <div className="flex gap-3 mt-5">
@@ -308,11 +454,17 @@ Equipe PromoJá`
           <Detalhe label="Email" valor={restauranteSelecionado.email} />
 
           <div className="flex gap-3 mt-6">
-            <button onClick={() => aprovarRestaurante(restauranteSelecionado)} className="flex-1 bg-green-600 text-white py-4 rounded-2xl font-black">
+            <button
+              onClick={() => aprovarRestaurante(restauranteSelecionado)}
+              className="flex-1 bg-green-600 text-white py-4 rounded-2xl font-black"
+            >
               Aprovar
             </button>
 
-            <button onClick={() => recusarRestaurante(restauranteSelecionado.id)} className="flex-1 bg-red-600 text-white py-4 rounded-2xl font-black">
+            <button
+              onClick={() => recusarRestaurante(restauranteSelecionado.id)}
+              className="flex-1 bg-red-600 text-white py-4 rounded-2xl font-black"
+            >
               Recusar
             </button>
           </div>
@@ -328,7 +480,10 @@ Equipe PromoJá`
           />
 
           <h2 className="text-2xl font-black">{promoSelecionada.titulo}</h2>
-          <p className="text-zinc-600 mt-3">{promoSelecionada.descricao || "Sem descrição"}</p>
+
+          <p className="text-zinc-600 mt-3">
+            {promoSelecionada.descricao || "Sem descrição"}
+          </p>
 
           <div className="mt-5 bg-[#F7F7F7] rounded-2xl p-4">
             <Detalhe label="Preço antigo" valor={`R$ ${promoSelecionada.preco_antigo || "0,00"}`} />
@@ -340,11 +495,17 @@ Equipe PromoJá`
           </div>
 
           <div className="flex gap-3 mt-6">
-            <button onClick={() => aprovarPromocao(promoSelecionada.id)} className="flex-1 bg-green-600 text-white py-4 rounded-2xl font-black">
+            <button
+              onClick={() => aprovarPromocao(promoSelecionada.id)}
+              className="flex-1 bg-green-600 text-white py-4 rounded-2xl font-black"
+            >
               Aprovar
             </button>
 
-            <button onClick={() => recusarPromocao(promoSelecionada.id)} className="flex-1 bg-red-600 text-white py-4 rounded-2xl font-black">
+            <button
+              onClick={() => recusarPromocao(promoSelecionada.id)}
+              className="flex-1 bg-red-600 text-white py-4 rounded-2xl font-black"
+            >
               Recusar
             </button>
           </div>

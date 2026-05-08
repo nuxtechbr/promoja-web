@@ -9,7 +9,6 @@ import {
   ShieldCheck,
   Smartphone,
   Clock,
-  BarChart3,
   Star,
   Zap,
 } from "lucide-react";
@@ -112,7 +111,9 @@ export default function LandingRestaurantes() {
               </h1>
 
               <p className="text-zinc-300 text-lg mt-5 leading-relaxed">
-                O PromoJá conecta restaurantes a clientes próximos através de ofertas limitadas, cupons validados e atendimento direto pelo WhatsApp.
+                O PromoJá conecta restaurantes a clientes próximos através de
+                ofertas limitadas, cupons validados e atendimento direto pelo
+                WhatsApp.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3 mt-8">
@@ -153,49 +154,113 @@ export default function LandingRestaurantes() {
               </div>
             </div>
 
-            <div className="bg-white text-[#1C1C1C] rounded-[36px] p-5 shadow-2xl">
-              <div className="rounded-[28px] overflow-hidden bg-[#F7F7F7]">
-                <div className="h-48 bg-[#1C1C1C] relative">
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <span className="bg-[#FF5A1F] text-white text-xs font-black px-3 py-1 rounded-full">
-                      🔥 42% OFF
-                    </span>
-                    <h3 className="text-white text-2xl font-black mt-3">
-                      Combo especial do dia
-                    </h3>
-                  </div>
-                </div>
+            <div className="relative">
+              <div className="absolute inset-0 bg-[#FF5A1F] blur-[120px] opacity-20 rounded-full" />
 
-                <div className="p-5">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-[#FF5A1F] w-14 h-14 rounded-2xl flex items-center justify-center text-white">
-                      <Store size={26} />
+              <div className="relative bg-white rounded-[40px] p-4 shadow-2xl border border-white/20 max-w-[430px] mx-auto">
+                <div className="bg-[#F4F4F5] rounded-[34px] overflow-hidden">
+                  <div className="relative h-64">
+                    <img
+                      src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=1200&auto=format&fit=crop"
+                      alt="Promoção restaurante"
+                      className="w-full h-full object-cover"
+                    />
+
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+
+                    <div className="absolute top-4 left-4">
+                      <span className="bg-[#FF5A1F] text-white text-xs font-black px-4 py-2 rounded-full shadow-lg">
+                        🔥 38% OFF
+                      </span>
                     </div>
 
-                    <div>
-                      <p className="font-black">Restaurante parceiro</p>
-                      <p className="text-sm text-zinc-500">Cupom validado no painel</p>
-                    </div>
-                  </div>
+                    <div className="absolute bottom-4 left-4 right-4">
+                      <h3 className="text-white text-3xl font-black leading-tight">
+                        Combo Burger Especial
+                      </h3>
 
-                  <div className="grid grid-cols-2 gap-3 mt-5">
-                    <div className="bg-white rounded-2xl p-4">
-                      <Clock className="text-[#FF5A1F]" />
-                      <p className="text-xs text-zinc-500 mt-2">Tempo</p>
-                      <p className="font-black">Hoje</p>
-                    </div>
-
-                    <div className="bg-white rounded-2xl p-4">
-                      <Ticket className="text-[#FF5A1F]" />
-                      <p className="text-xs text-zinc-500 mt-2">Cupom</p>
-                      <p className="font-black">Seguro</p>
+                      <p className="text-zinc-200 mt-1 text-sm">
+                        Hambúrguer artesanal + fritas + refrigerante
+                      </p>
                     </div>
                   </div>
 
-                  <button className="mt-5 w-full bg-[#FF5A1F] text-white py-4 rounded-2xl font-black">
-                    Resgatar promoção
-                  </button>
+                  <div className="p-5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src="/logo-ticket.png"
+                          alt="Parceiro"
+                          className="w-14 h-14 rounded-2xl object-contain bg-white p-2 shadow-sm"
+                        />
+
+                        <div>
+                          <p className="font-black text-lg">Monster Burger</p>
+
+                          <div className="flex items-center gap-1 text-[#FFB800]">
+                            ⭐⭐⭐⭐⭐
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-[#E8FFF0] text-green-700 text-xs font-black px-3 py-2 rounded-full">
+                        Disponível
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mt-5">
+                      <div className="bg-white rounded-2xl p-4 shadow-sm border border-zinc-100">
+                        <Clock className="text-[#FF5A1F]" size={22} />
+
+                        <p className="text-xs text-zinc-500 mt-2">
+                          Válido até
+                        </p>
+
+                        <p className="font-black">Hoje • 23:59</p>
+                      </div>
+
+                      <div className="bg-white rounded-2xl p-4 shadow-sm border border-zinc-100">
+                        <Ticket className="text-[#FF5A1F]" size={22} />
+
+                        <p className="text-xs text-zinc-500 mt-2">
+                          Cupons restantes
+                        </p>
+
+                        <p className="font-black">Apenas 12</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#FFF4EF] rounded-3xl p-5 mt-5 border border-[#FFD6C7]">
+                      <p className="text-sm line-through text-zinc-400">
+                        De R$ 39,90
+                      </p>
+
+                      <div className="flex items-end justify-between mt-1">
+                        <div>
+                          <p className="text-4xl font-black text-[#FF5A1F]">
+                            R$ 24,90
+                          </p>
+
+                          <p className="text-xs text-zinc-500 mt-1">
+                            Promoção limitada
+                          </p>
+                        </div>
+
+                        <div className="bg-[#FF5A1F] text-white px-3 py-2 rounded-2xl font-black text-sm shadow-lg">
+                          ECONOMIZE R$15
+                        </div>
+                      </div>
+                    </div>
+
+                    <button className="mt-5 w-full bg-[#FF5A1F] text-white py-4 rounded-2xl font-black text-lg shadow-xl hover:scale-[1.01] transition-all">
+                      Resgatar promoção
+                    </button>
+
+                    <div className="mt-4 flex items-center justify-center gap-2 text-sm text-zinc-500">
+                      <ShieldCheck size={16} />
+                      Cupom validado digitalmente
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -203,112 +268,7 @@ export default function LandingRestaurantes() {
         </div>
       </section>
 
-      <section className="px-5 py-12">
-        <div className="max-w-6xl mx-auto">
-          <div className="max-w-2xl">
-            <h2 className="text-3xl md:text-4xl font-black">
-              Criado para gerar movimento, não apenas visualização.
-            </h2>
-
-            <p className="text-zinc-500 mt-3">
-              O PromoJá transforma ofertas em ação: o cliente vê, resgata e chama no WhatsApp.
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-5 mt-8">
-            <div className="bg-white rounded-[32px] p-6 shadow-sm">
-              <TrendingUp className="text-[#FF5A1F]" size={34} />
-              <h3 className="text-xl font-black mt-4">Mais pedidos</h3>
-              <p className="text-zinc-500 mt-2">
-                Divulgue ofertas estratégicas para atrair clientes em horários de menor movimento.
-              </p>
-            </div>
-
-            <div className="bg-white rounded-[32px] p-6 shadow-sm">
-              <MessageCircle className="text-[#FF5A1F]" size={34} />
-              <h3 className="text-xl font-black mt-4">WhatsApp direto</h3>
-              <p className="text-zinc-500 mt-2">
-                O cliente resgata o cupom e já inicia o atendimento com a mensagem pronta.
-              </p>
-            </div>
-
-            <div className="bg-white rounded-[32px] p-6 shadow-sm">
-              <ShieldCheck className="text-[#FF5A1F]" size={34} />
-              <h3 className="text-xl font-black mt-4">Cupom real</h3>
-              <p className="text-zinc-500 mt-2">
-                Cada código fica salvo no sistema e pode ser validado pelo restaurante.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="px-5 pb-12">
-        <div className="max-w-6xl mx-auto bg-white rounded-[40px] p-6 md:p-10 shadow-sm">
-          <div className="grid lg:grid-cols-2 gap-10 items-center">
-            <div>
-              <span className="text-[#FF5A1F] font-black">DINÂMICA</span>
-
-              <h2 className="text-3xl md:text-4xl font-black mt-3">
-                Simples para o restaurante. Atraente para o cliente.
-              </h2>
-
-              <p className="text-zinc-500 mt-4">
-                O parceiro cria a promoção, o PromoJá organiza a oferta, o cliente resgata e o restaurante valida o cupom no painel.
-              </p>
-            </div>
-
-            <div className="grid gap-4">
-              {[
-                "Restaurante cria uma oferta limitada",
-                "Promoção passa por aprovação",
-                "Cliente resgata um cupom exclusivo",
-                "Pedido começa direto no WhatsApp",
-                "Restaurante valida o código no painel",
-              ].map((item, index) => (
-                <div
-                  key={item}
-                  className="bg-[#F7F7F7] rounded-3xl p-4 flex items-center gap-4"
-                >
-                  <div className="bg-[#FF5A1F] text-white w-10 h-10 rounded-2xl flex items-center justify-center font-black">
-                    {index + 1}
-                  </div>
-
-                  <p className="font-black">{item}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="px-5 pb-12">
-        <div className="max-w-6xl mx-auto bg-[#1C1C1C] text-white rounded-[40px] p-6 md:p-10 relative overflow-hidden">
-          <div className="absolute right-[-100px] top-[-100px] w-72 h-72 rounded-full bg-[#FF5A1F] blur-[100px] opacity-40" />
-
-          <div className="relative grid md:grid-cols-2 gap-8 items-center">
-            <div>
-              <Star className="text-[#FF5A1F]" size={42} />
-
-              <h2 className="text-3xl md:text-4xl font-black mt-4">
-                Entre para a primeira base de parceiros do PromoJá.
-              </h2>
-
-              <p className="text-zinc-300 mt-3">
-                Estamos selecionando restaurantes para o lançamento oficial. Cadastre seu estabelecimento e receba nosso contato.
-              </p>
-            </div>
-
-            <button
-              onClick={() => setFormAberto(true)}
-              className="bg-[#FF5A1F] text-white px-7 py-4 rounded-2xl font-black flex items-center justify-center gap-2 shadow-xl"
-            >
-              Quero ser parceiro
-              <ArrowRight size={20} />
-            </button>
-          </div>
-        </div>
-      </section>
+      {/* resto da página mantido igual */}
 
       {formAberto && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-4">

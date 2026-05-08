@@ -3,14 +3,15 @@ import { Link } from "react-router-dom";
 import {
   ArrowLeft,
   Store,
-  CheckCircle,
-  MessageCircle,
   Eye,
   EyeOff,
   Lock,
   Clock,
 } from "lucide-react";
 import { supabase } from "../services/supabase";
+
+const WEBHOOK_CADASTRO_PARCEIRO =
+  "https://nuxtechbr.app.n8n.cloud/webhook/promoja-parceiro-cadastro";
 
 export default function CadastroRestaurante() {
   const [nome, setNome] = useState("");
@@ -25,22 +26,17 @@ export default function CadastroRestaurante() {
 
   const [senha, setSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
-
   const [mostrarSenha, setMostrarSenha] = useState(false);
-  const [mostrarConfirmarSenha, setMostrarConfirmarSenha] =
-    useState(false);
+  const [mostrarConfirmarSenha, setMostrarConfirmarSenha] = useState(false);
 
   const [carregando, setCarregando] = useState(false);
-  const [cadastroEnviado, setCadastroEnviado] =
-    useState(false);
+  const [cadastroEnviado, setCadastroEnviado] = useState(false);
 
   async function cadastrarRestaurante(event) {
     event.preventDefault();
-
     setCarregando(true);
 
     const emailFormatado = email.toLowerCase().trim();
-
     const telefoneLimpo = whatsapp.replace(/\D/g, "");
 
     if (senha.length < 6) {
@@ -58,9 +54,7 @@ export default function CadastroRestaurante() {
     const { data: contaExistente } = await supabase
       .from("user_roles")
       .select("*")
-      .or(
-        `email.eq.${emailFormatado},telefone.eq.${telefoneLimpo}`
-      )
+      .or(`email.eq.${emailFormatado},telefone.eq.${telefoneLimpo}`)
       .maybeSingle();
 
     if (contaExistente) {
@@ -68,16 +62,12 @@ export default function CadastroRestaurante() {
 
       if (contaExistente.email === emailFormatado) {
         if (contaExistente.tipo === "cliente") {
-          alert(
-            "Este e-mail já pertence a uma conta de cliente."
-          );
+          alert("Este e-mail já pertence a uma conta de cliente.");
           return;
         }
 
         if (contaExistente.tipo === "admin") {
-          alert(
-            "Este e-mail pertence à administração."
-          );
+          alert("Este e-mail pertence à administração.");
           return;
         }
 
@@ -91,62 +81,84 @@ export default function CadastroRestaurante() {
       }
     }
 
-    const { data: authData, error: authError } =
-      await supabase.auth.signUp({
-        email: emailFormatado,
-        password: senha,
-      });
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: emailFormatado,
+      password: senha,
+    });
 
     if (authError) {
       console.log(authError);
-
       setCarregando(false);
-
       alert(authError.message);
-
       return;
     }
 
     const authId = authData.user?.id;
 
-    const { error } = await supabase
-      .from("restaurants")
-      .insert([
-        {
-          nome,
-          responsavel,
-          email: emailFormatado,
-          whatsapp_comercial: telefoneLimpo,
-          categoria,
-          endereco,
-          cidade,
-          bairro,
-          instagram,
-          auth_id: authId,
-          status: "pendente",
-          created_at: new Date(),
-        },
-      ]);
+    const { error } = await supabase.from("restaurants").insert([
+      {
+        nome,
+        responsavel,
+        email: emailFormatado,
+        whatsapp_comercial: telefoneLimpo,
+        categoria,
+        endereco,
+        cidade,
+        bairro,
+        instagram,
+        auth_id: authId,
+        status: "pendente",
+        created_at: new Date(),
+      },
+    ]);
 
     if (error) {
       console.log(error);
-
       setCarregando(false);
-
       alert(error.message);
-
       return;
     }
 
-    await supabase.from("user_roles").insert({
+    const { error: roleError } = await supabase.from("user_roles").insert({
       auth_id: authId,
       email: emailFormatado,
       telefone: telefoneLimpo,
       tipo: "parceiro",
     });
 
-    setCarregando(false);
+    if (roleError) {
+      console.log(roleError);
+      setCarregando(false);
+      alert(roleError.message);
+      return;
+    }
 
+    try {
+      await fetch(WEBHOOK_CADASTRO_PARCEIRO, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          nome,
+          responsavel,
+          email: emailFormatado,
+          whatsapp: telefoneLimpo,
+          restaurante: nome,
+          categoria,
+          endereco,
+          cidade,
+          bairro,
+          instagram,
+          status: "pendente",
+          origem: "cadastro_real_parceiro",
+        }),
+      });
+    } catch (webhookError) {
+      console.log("Erro ao enviar webhook n8n:", webhookError);
+    }
+
+    setCarregando(false);
     setCadastroEnviado(true);
   }
 
@@ -170,15 +182,13 @@ export default function CadastroRestaurante() {
             </h1>
 
             <p className="text-zinc-300 mt-3 leading-relaxed">
-              Recebemos o cadastro do seu restaurante.
-              Nossa equipe vai analisar as informações e responder em até 24h.
+              Recebemos o cadastro do seu restaurante. Nossa equipe vai analisar
+              as informações e responder em até 24h.
             </p>
           </div>
 
           <div className="bg-white rounded-[28px] p-5 shadow-sm mt-5">
-            <p className="font-black text-lg">
-              Próximos passos:
-            </p>
+            <p className="font-black text-lg">Próximos passos:</p>
 
             <div className="mt-4 space-y-3">
               <p className="text-sm text-zinc-600">
@@ -226,19 +236,15 @@ export default function CadastroRestaurante() {
           <Store size={32} />
         </div>
 
-        <h1 className="text-3xl font-black">
-          Cadastre seu restaurante
-        </h1>
+        <h1 className="text-3xl font-black">Cadastre seu restaurante</h1>
 
         <p className="text-zinc-300 mt-3 leading-relaxed">
-          Crie seu cadastro. Após aprovação, você poderá acessar o painel do parceiro.
+          Crie seu cadastro. Após aprovação, você poderá acessar o painel do
+          parceiro.
         </p>
       </section>
 
-      <form
-        onSubmit={cadastrarRestaurante}
-        className="mt-6 space-y-4"
-      >
+      <form onSubmit={cadastrarRestaurante} className="mt-6 space-y-4">
         <input
           type="text"
           required
@@ -253,9 +259,7 @@ export default function CadastroRestaurante() {
           required
           placeholder="Nome do responsável"
           value={responsavel}
-          onChange={(e) =>
-            setResponsavel(e.target.value)
-          }
+          onChange={(e) => setResponsavel(e.target.value)}
           className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
         />
 
@@ -264,9 +268,7 @@ export default function CadastroRestaurante() {
           required
           placeholder="E-mail de acesso ao painel"
           value={email}
-          onChange={(e) =>
-            setEmail(e.target.value.toLowerCase())
-          }
+          onChange={(e) => setEmail(e.target.value.toLowerCase())}
           className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
         />
 
@@ -275,49 +277,25 @@ export default function CadastroRestaurante() {
           required
           placeholder="WhatsApp comercial"
           value={whatsapp}
-          onChange={(e) =>
-            setWhatsapp(e.target.value)
-          }
+          onChange={(e) => setWhatsapp(e.target.value)}
           className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
         />
 
         <select
           required
           value={categoria}
-          onChange={(e) =>
-            setCategoria(e.target.value)
-          }
+          onChange={(e) => setCategoria(e.target.value)}
           className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
         >
-          <option value="">
-            Categoria do negócio
-          </option>
-
-          <option value="Hambúrguer">
-            Hambúrguer
-          </option>
-
+          <option value="">Categoria do negócio</option>
+          <option value="Hambúrguer">Hambúrguer</option>
           <option value="Pizza">Pizza</option>
-
           <option value="Açaí">Açaí</option>
-
           <option value="Marmita">Marmita</option>
-
-          <option value="Sushi/Japonês">
-            Sushi/Japonês
-          </option>
-
-          <option value="Churrasco">
-            Churrasco
-          </option>
-
-          <option value="Restaurante">
-            Restaurante
-          </option>
-
-          <option value="Outros">
-            Outros
-          </option>
+          <option value="Sushi/Japonês">Sushi/Japonês</option>
+          <option value="Churrasco">Churrasco</option>
+          <option value="Restaurante">Restaurante</option>
+          <option value="Outros">Outros</option>
         </select>
 
         <input
@@ -325,9 +303,7 @@ export default function CadastroRestaurante() {
           required
           placeholder="Endereço"
           value={endereco}
-          onChange={(e) =>
-            setEndereco(e.target.value)
-          }
+          onChange={(e) => setEndereco(e.target.value)}
           className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
         />
 
@@ -353,9 +329,7 @@ export default function CadastroRestaurante() {
           type="text"
           placeholder="Instagram"
           value={instagram}
-          onChange={(e) =>
-            setInstagram(e.target.value)
-          }
+          onChange={(e) => setInstagram(e.target.value)}
           className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
         />
 
@@ -363,73 +337,47 @@ export default function CadastroRestaurante() {
           <div className="flex items-center gap-2 mb-4">
             <Lock className="text-[#FF5A1F]" />
 
-            <h2 className="font-black text-lg">
-              Crie sua senha de acesso
-            </h2>
+            <h2 className="font-black text-lg">Crie sua senha de acesso</h2>
           </div>
 
           <div className="space-y-4">
             <div className="relative">
               <input
-                type={
-                  mostrarSenha ? "text" : "password"
-                }
+                type={mostrarSenha ? "text" : "password"}
                 required
                 placeholder="Crie uma senha"
                 value={senha}
-                onChange={(e) =>
-                  setSenha(e.target.value)
-                }
+                onChange={(e) => setSenha(e.target.value)}
                 className="w-full bg-[#F7F7F7] rounded-2xl px-4 py-4 pr-12 outline-none"
               />
 
               <button
                 type="button"
-                onClick={() =>
-                  setMostrarSenha(!mostrarSenha)
-                }
+                onClick={() => setMostrarSenha(!mostrarSenha)}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500"
               >
-                {mostrarSenha ? (
-                  <EyeOff size={20} />
-                ) : (
-                  <Eye size={20} />
-                )}
+                {mostrarSenha ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
 
             <div className="relative">
               <input
-                type={
-                  mostrarConfirmarSenha
-                    ? "text"
-                    : "password"
-                }
+                type={mostrarConfirmarSenha ? "text" : "password"}
                 required
                 placeholder="Repita a senha"
                 value={confirmarSenha}
-                onChange={(e) =>
-                  setConfirmarSenha(
-                    e.target.value
-                  )
-                }
+                onChange={(e) => setConfirmarSenha(e.target.value)}
                 className="w-full bg-[#F7F7F7] rounded-2xl px-4 py-4 pr-12 outline-none"
               />
 
               <button
                 type="button"
                 onClick={() =>
-                  setMostrarConfirmarSenha(
-                    !mostrarConfirmarSenha
-                  )
+                  setMostrarConfirmarSenha(!mostrarConfirmarSenha)
                 }
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500"
               >
-                {mostrarConfirmarSenha ? (
-                  <EyeOff size={20} />
-                ) : (
-                  <Eye size={20} />
-                )}
+                {mostrarConfirmarSenha ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
           </div>
