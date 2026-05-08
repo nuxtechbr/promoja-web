@@ -16,6 +16,14 @@ import CriarSenhaParceiro from "./pages/CriarSenhaParceiro";
 import LoginParceiro from "./pages/LoginParceiro";
 import LandingRestaurantes from "./pages/LandingRestaurantes";
 import Links from "./pages/Links";
+import RestaurantePublico from "./pages/RestaurantePublico";
+import PromoKit from "./pages/PromoKit";
+import Instalar from "./pages/Instalar";
+import Ranking from "./pages/Ranking";
+import AdminLogin from "./pages/AdminLogin";
+import RecuperarSenha from "./pages/RecuperarSenha";
+import NovaSenha from "./pages/NovaSenha";
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -24,15 +32,21 @@ export default function App() {
 
         <Route path="/parceiro/criar-senha" element={<CriarSenhaParceiro />} />
 <Route path="/parceiro/login" element={<LoginParceiro />} />
-
+<Route path="/nova-senha" element={<NovaSenha />} />
+<Route path="/admin-login" element={<AdminLogin />} />
+<Route path="/recuperar-senha" element={<RecuperarSenha />} />
+<Route path="/loja/:id" element={<RestaurantePublico />} />
+<Route path="/ranking" element={<Ranking />} />
         <Route path="/login" element={<Login />} />
 <Route path="/links" element={<Links />} />
+<Route path="/instalar" element={<Instalar />} />
         <Route
   path="/parceiro/cupons"
   element={<CuponsRestaurante />}
 />
 
         <Route path="/cadastro" element={<CadastroUsuario />} />
+        <Route path="/promokit" element={<PromoKit />} />
 
 <Route path="/restaurantes" element={<LandingRestaurantes />} />
 

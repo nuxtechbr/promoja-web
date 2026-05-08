@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Ticket, Calendar, Hash } from "lucide-react";
 import BottomNav from "../components/BottomNav";
 import { supabase } from "../services/supabase";
+import ReviewCoupon from "../components/ReviewCoupon";
 
 export default function MeusResgates() {
   const [resgates, setResgates] = useState([]);
@@ -84,6 +85,7 @@ export default function MeusResgates() {
             key={item.id}
             className="bg-white rounded-3xl p-5 shadow-sm border border-zinc-100"
           >
+            <ReviewCoupon redemption={resgate} />
             <div className="flex items-center gap-3">
 
               <div className="bg-[#FF5A1F] w-14 h-14 rounded-2xl flex items-center justify-center text-white">

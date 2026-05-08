@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, LogIn } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, LogIn } from "lucide-react";
 import { supabase } from "../services/supabase";
 
 export default function Login() {
@@ -8,25 +8,49 @@ export default function Login() {
 
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [mostrarSenha, setMostrarSenha] = useState(false);
   const [carregando, setCarregando] = useState(false);
 
   async function fazerLogin(event) {
     event.preventDefault();
     setCarregando(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
       password: senha,
     });
 
-    setCarregando(false);
-
     if (error) {
-      alert(error.message);
+      setCarregando(false);
+      alert("E-mail ou senha inválidos.");
       return;
     }
 
-    alert("Login realizado com sucesso!");
+    const user = data.user;
+
+    const { data: role } = await supabase
+      .from("user_roles")
+      .select("*")
+      .eq("auth_id", user.id)
+      .maybeSingle();
+
+    if (role?.tipo === "admin") {
+      await supabase.auth.signOut();
+      setCarregando(false);
+      alert("Este e-mail pertence à administração. Use o login administrativo.");
+      navigate("/admin-login");
+      return;
+    }
+
+    if (role?.tipo === "parceiro") {
+      await supabase.auth.signOut();
+      setCarregando(false);
+      alert("Este e-mail pertence a uma conta de parceiro. Use o login do parceiro.");
+      navigate("/parceiro/login");
+      return;
+    }
+
+    setCarregando(false);
     navigate("/");
   }
 
@@ -62,14 +86,31 @@ export default function Login() {
             className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
           />
 
-          <input
-            type="password"
-            required
-            value={senha}
-            onChange={(e) => setSenha(e.target.value)}
-            placeholder="Sua senha"
-            className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
-          />
+          <div className="relative">
+            <input
+              type={mostrarSenha ? "text" : "password"}
+              required
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              placeholder="Sua senha"
+              className="w-full bg-white rounded-2xl px-4 py-4 pr-14 outline-none shadow-sm"
+            />
+
+            <button
+              type="button"
+              onClick={() => setMostrarSenha(!mostrarSenha)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500"
+            >
+              {mostrarSenha ? <EyeOff size={22} /> : <Eye size={22} />}
+            </button>
+          </div>
+
+          <Link
+            to="/recuperar-senha"
+            className="block text-right text-sm font-bold text-[#FF5A1F]"
+          >
+            Esqueci minha senha
+          </Link>
 
           <button
             type="submit"

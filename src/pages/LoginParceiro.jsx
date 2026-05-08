@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { LogIn, ArrowLeft } from "lucide-react";
+import { LogIn, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { supabase } from "../services/supabase";
 
 export default function LoginParceiro() {
@@ -8,6 +8,7 @@ export default function LoginParceiro() {
 
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
+  const [mostrarSenha, setMostrarSenha] = useState(false);
   const [carregando, setCarregando] = useState(false);
 
   async function entrar(event) {
@@ -22,26 +23,65 @@ export default function LoginParceiro() {
     });
 
     if (error) {
-      alert("E-mail ou senha inválidos.");
       setCarregando(false);
+      alert("E-mail ou senha inválidos.");
       return;
     }
 
     const authId = data.user.id;
 
+    const { data: role } = await supabase
+      .from("user_roles")
+      .select("*")
+      .eq("auth_id", authId)
+      .maybeSingle();
+
+    if (role?.tipo === "admin") {
+      await supabase.auth.signOut();
+      setCarregando(false);
+      alert("Este e-mail pertence à administração. Use o login administrativo.");
+      navigate("/admin-login");
+      return;
+    }
+
+    if (role?.tipo === "cliente") {
+      await supabase.auth.signOut();
+      setCarregando(false);
+      alert("Este e-mail pertence a uma conta de cliente. Use o login do cliente.");
+      navigate("/login");
+      return;
+    }
+
+    if (role?.tipo !== "parceiro") {
+      await supabase.auth.signOut();
+      setCarregando(false);
+      alert("Este acesso é exclusivo para restaurantes parceiros.");
+      return;
+    }
+
     const { data: restaurante, error: restauranteError } = await supabase
       .from("restaurants")
       .select("*")
       .eq("auth_id", authId)
-      .single();
-
-    setCarregando(false);
+      .maybeSingle();
 
     if (restauranteError || !restaurante) {
+      await supabase.auth.signOut();
+      setCarregando(false);
       alert("Este login não pertence a um restaurante parceiro.");
       return;
     }
 
+    if (restaurante.status !== "ativo") {
+      await supabase.auth.signOut();
+      setCarregando(false);
+      alert(
+        "Seu cadastro ainda está em análise. A equipe PromoJá responderá em até 24h."
+      );
+      return;
+    }
+
+    setCarregando(false);
     navigate("/parceiro/painel");
   }
 
@@ -83,15 +123,31 @@ export default function LoginParceiro() {
             className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
           />
 
-          <input
-            type="password"
-            required
-            placeholder="Senha"
-            value={senha}
-            onChange={(e) => setSenha(e.target.value)}
-            className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
-          />
+          <div className="relative">
+            <input
+              type={mostrarSenha ? "text" : "password"}
+              required
+              placeholder="Senha"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              className="w-full bg-white rounded-2xl px-4 py-4 pr-14 outline-none shadow-sm"
+            />
 
+            <button
+              type="button"
+              onClick={() => setMostrarSenha(!mostrarSenha)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500"
+            >
+              {mostrarSenha ? <EyeOff size={22} /> : <Eye size={22} />}
+            </button>
+          </div>
+
+          <Link
+  to="/recuperar-senha"
+  className="block text-right text-sm font-bold text-[#FF5A1F]"
+>
+  Esqueci minha senha
+</Link>
           <button
             type="submit"
             disabled={carregando}
