@@ -7,6 +7,8 @@ import {
   EyeOff,
   Lock,
   Clock,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import { supabase } from "../services/supabase";
 
@@ -31,52 +33,66 @@ export default function CadastroRestaurante() {
 
   const [carregando, setCarregando] = useState(false);
   const [cadastroEnviado, setCadastroEnviado] = useState(false);
+  const [erroTela, setErroTela] = useState("");
+
+  function mostrarErro(mensagem) {
+    setErroTela(mensagem);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   async function cadastrarRestaurante(event) {
     event.preventDefault();
     setCarregando(true);
+    setErroTela("");
 
     const emailFormatado = email.toLowerCase().trim();
     const telefoneLimpo = whatsapp.replace(/\D/g, "");
 
     if (senha.length < 6) {
-      alert("A senha precisa ter pelo menos 6 caracteres.");
+      mostrarErro("A senha precisa ter pelo menos 6 caracteres.");
       setCarregando(false);
       return;
     }
 
     if (senha !== confirmarSenha) {
-      alert("As senhas não conferem.");
+      mostrarErro("As senhas não conferem.");
       setCarregando(false);
       return;
     }
 
-    const { data: contaExistente } = await supabase
+    const { data: contaExistente, error: erroConsulta } = await supabase
       .from("user_roles")
       .select("*")
       .or(`email.eq.${emailFormatado},telefone.eq.${telefoneLimpo}`)
       .maybeSingle();
+
+    if (erroConsulta) {
+      console.log(erroConsulta);
+      mostrarErro("Não foi possível verificar seus dados. Tente novamente.");
+      setCarregando(false);
+      return;
+    }
 
     if (contaExistente) {
       setCarregando(false);
 
       if (contaExistente.email === emailFormatado) {
         if (contaExistente.tipo === "cliente") {
-          alert("Este e-mail já pertence a uma conta de cliente.");
+          mostrarErro("Este e-mail já pertence a uma conta de cliente.");
           return;
         }
 
         if (contaExistente.tipo === "admin") {
-          alert("Este e-mail pertence à administração.");
+          mostrarErro("Este e-mail pertence à administração.");
           return;
         }
 
-        alert("Este e-mail já está em uso.");
+        mostrarErro("Este e-mail já está em uso.");
         return;
       }
 
       if (contaExistente.telefone === telefoneLimpo) {
-        alert("Este número já está cadastrado.");
+        mostrarErro("Este número já está cadastrado.");
         return;
       }
     }
@@ -88,34 +104,43 @@ export default function CadastroRestaurante() {
 
     if (authError) {
       console.log(authError);
+      mostrarErro(authError.message || "Não foi possível criar sua conta.");
       setCarregando(false);
-      alert(authError.message);
       return;
     }
 
     const authId = authData.user?.id;
 
-    const { error } = await supabase.from("restaurants").insert([
+    if (!authId) {
+      mostrarErro("Não foi possível criar o usuário. Tente novamente.");
+      setCarregando(false);
+      return;
+    }
+
+    const { error: restaurantError } = await supabase.from("restaurants").insert([
       {
-        nome,
-        responsavel,
+        nome: nome.trim(),
+        responsavel: responsavel.trim(),
         email: emailFormatado,
         whatsapp_comercial: telefoneLimpo,
         categoria,
-        endereco,
-        cidade,
-        bairro,
-        instagram,
+        endereco: endereco.trim(),
+        cidade: cidade.trim(),
+        bairro: bairro.trim(),
+        instagram: instagram.trim(),
         auth_id: authId,
         status: "pendente",
         created_at: new Date(),
       },
     ]);
 
-    if (error) {
-      console.log(error);
+    if (restaurantError) {
+      console.log(restaurantError);
+      mostrarErro(
+        restaurantError.message ||
+          "Não foi possível enviar seu cadastro. Tente novamente."
+      );
       setCarregando(false);
-      alert(error.message);
       return;
     }
 
@@ -128,32 +153,40 @@ export default function CadastroRestaurante() {
 
     if (roleError) {
       console.log(roleError);
+      mostrarErro(
+        roleError.message ||
+          "Cadastro criado, mas houve erro ao liberar o perfil. Fale com o suporte."
+      );
       setCarregando(false);
-      alert(roleError.message);
       return;
     }
 
     try {
-      await fetch(WEBHOOK_CADASTRO_PARCEIRO, {
+      const webhookResponse = await fetch(WEBHOOK_CADASTRO_PARCEIRO, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          nome,
-          responsavel,
+          nome: nome.trim(),
+          responsavel: responsavel.trim(),
           email: emailFormatado,
           whatsapp: telefoneLimpo,
-          restaurante: nome,
+          restaurante: nome.trim(),
           categoria,
-          endereco,
-          cidade,
-          bairro,
-          instagram,
+          endereco: endereco.trim(),
+          cidade: cidade.trim(),
+          bairro: bairro.trim(),
+          instagram: instagram.trim(),
           status: "pendente",
           origem: "cadastro_real_parceiro",
+          data: new Date().toISOString(),
         }),
       });
+
+      if (!webhookResponse.ok) {
+        console.log("Webhook N8N respondeu erro:", webhookResponse.status);
+      }
     } catch (webhookError) {
       console.log("Erro ao enviar webhook n8n:", webhookError);
     }
@@ -174,16 +207,14 @@ export default function CadastroRestaurante() {
             />
 
             <div className="bg-[#FF5A1F] w-20 h-20 rounded-[28px] flex items-center justify-center mx-auto">
-              <Clock size={38} />
+              <CheckCircle size={42} />
             </div>
 
-            <h1 className="text-3xl font-black mt-5">
-              Cadastro em análise
-            </h1>
+            <h1 className="text-3xl font-black mt-5">Cadastro enviado!</h1>
 
             <p className="text-zinc-300 mt-3 leading-relaxed">
-              Recebemos o cadastro do seu restaurante. Nossa equipe vai analisar
-              as informações e responder em até 24h.
+              Seu cadastro foi enviado para análise. Nossa equipe entrará em
+              contato com você assim que for aprovado.
             </p>
           </div>
 
@@ -224,6 +255,16 @@ export default function CadastroRestaurante() {
       >
         <ArrowLeft size={22} />
       </Link>
+
+      {erroTela && (
+        <div className="mt-5 rounded-3xl border border-red-200 bg-red-50 p-4 text-red-700 shadow-sm flex gap-3">
+          <AlertCircle className="shrink-0 mt-0.5" size={22} />
+          <div>
+            <p className="font-black">Não foi possível continuar</p>
+            <p className="text-sm mt-1">{erroTela}</p>
+          </div>
+        </div>
+      )}
 
       <section className="mt-6 bg-[#1C1C1C] text-white rounded-[32px] p-6 shadow-xl">
         <img
@@ -336,7 +377,6 @@ export default function CadastroRestaurante() {
         <section className="bg-white rounded-[28px] p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
             <Lock className="text-[#FF5A1F]" />
-
             <h2 className="font-black text-lg">Crie sua senha de acesso</h2>
           </div>
 
@@ -386,7 +426,7 @@ export default function CadastroRestaurante() {
         <button
           type="submit"
           disabled={carregando}
-          className="w-full bg-[#FF5A1F] text-white py-4 rounded-2xl font-black text-lg shadow-lg"
+          className="w-full bg-[#FF5A1F] text-white py-4 rounded-2xl font-black text-lg shadow-lg disabled:opacity-70"
         >
           {carregando
             ? "Enviando para análise..."
