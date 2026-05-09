@@ -46,8 +46,7 @@ export default function LandingRestaurantes() {
         return;
       }
 
-      await fetch("https://nuxtechbr.app.n8n.cloud/webhook/novorestaurante", {
-        method: "POST",
+await fetch("https://nuxtechbr.app.n8n.cloud/webhook/novo-restaurante-alerta", {      method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
