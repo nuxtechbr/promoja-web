@@ -6,7 +6,6 @@ import {
   LogOut,
   Store,
   BarChart3,
-  CheckCircle,
   Camera,
   Save,
   Copy,
@@ -26,20 +25,26 @@ export default function PainelRestaurante() {
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
+  function criarSlug(texto) {
+    return String(texto || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9\s-]/g, "")
+      .trim()
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-");
+  }
+
   function promocaoEsgotada(promo) {
     const total = Number(promo.quantidade_total || 0);
     const resgatada = Number(promo.quantidade_resgatada || 0);
-
     return total > 0 && resgatada >= total;
   }
 
   function dentroDe24h(data) {
     if (!data) return true;
-
-    const agora = Date.now();
-    const dataInfo = new Date(data).getTime();
-
-    return agora - dataInfo <= 24 * 60 * 60 * 1000;
+    return Date.now() - new Date(data).getTime() <= 24 * 60 * 60 * 1000;
   }
 
   function promocaoVisivel(promo) {
@@ -94,9 +99,7 @@ export default function PainelRestaurante() {
       .eq("restaurant_id", restauranteData.id)
       .order("id", { ascending: false });
 
-    const promocoesFiltradas = (promocoesData || []).filter(promocaoVisivel);
-
-    setPromocoes(promocoesFiltradas);
+    setPromocoes((promocoesData || []).filter(promocaoVisivel));
 
     const { data: todasRedemptions } = await supabase
       .from("redemptions")
@@ -183,8 +186,7 @@ export default function PainelRestaurante() {
   }
 
   async function alternarPromocao(promo) {
-    const novoStatus =
-      promo.status === "Ativa" ? "desativada" : "Ativa";
+    const novoStatus = promo.status === "Ativa" ? "desativada" : "Ativa";
 
     const { error } = await supabase
       .from("promotions")
@@ -198,20 +200,21 @@ export default function PainelRestaurante() {
       return;
     }
 
-    alert(
-      novoStatus === "Ativa"
-        ? "Promoção ativada!"
-        : "Promoção desativada!"
-    );
-
+    alert(novoStatus === "Ativa" ? "Promoção ativada!" : "Promoção desativada!");
     carregarPainel();
   }
 
   function copiarLinkLoja() {
-    const link = `https://usepromoja.com.br/loja/${restaurante.id}`;
+    const slug = criarSlug(nomeRestaurante || restaurante?.nome);
+
+    if (!slug) {
+      alert("Salve o nome do restaurante antes de copiar o link.");
+      return;
+    }
+
+    const link = `https://usepromoja.com.br/loja/${slug}`;
 
     navigator.clipboard.writeText(link);
-
     alert("Link da loja copiado!");
   }
 
@@ -227,9 +230,7 @@ export default function PainelRestaurante() {
   if (carregando) {
     return (
       <main className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
-        <p className="font-black text-[#FF5A1F]">
-          Carregando painel...
-        </p>
+        <p className="font-black text-[#FF5A1F]">Carregando painel...</p>
       </main>
     );
   }
@@ -245,13 +246,9 @@ export default function PainelRestaurante() {
 
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-zinc-300">
-              Painel do parceiro
-            </p>
+            <p className="text-sm text-zinc-300">Painel do parceiro</p>
 
-            <h1 className="text-3xl font-black mt-1">
-              {restaurante?.nome}
-            </h1>
+            <h1 className="text-3xl font-black mt-1">{restaurante?.nome}</h1>
 
             <p className="text-sm text-zinc-300 mt-2">
               Gerencie promoções, perfil e cupons do seu restaurante.
@@ -268,9 +265,7 @@ export default function PainelRestaurante() {
       </header>
 
       <section className="mt-6 bg-white rounded-[32px] p-5 shadow-sm">
-        <h2 className="text-xl font-black">
-          Perfil do restaurante
-        </h2>
+        <h2 className="text-xl font-black">Perfil do restaurante</h2>
 
         <p className="text-sm text-zinc-500 mt-1">
           Essa foto e nome aparecem para o cliente na promoção.
@@ -310,9 +305,7 @@ export default function PainelRestaurante() {
             <input
               type="text"
               value={nomeRestaurante}
-              onChange={(e) =>
-                setNomeRestaurante(e.target.value)
-              }
+              onChange={(e) => setNomeRestaurante(e.target.value)}
               className="mt-2 w-full bg-[#F7F7F7] rounded-2xl px-4 py-4 outline-none"
             />
 
@@ -339,26 +332,14 @@ export default function PainelRestaurante() {
       <section className="grid grid-cols-2 gap-4 mt-6">
         <div className="bg-white rounded-3xl p-5 shadow-sm">
           <BarChart3 className="text-[#FF5A1F]" />
-
-          <p className="text-3xl font-black mt-3">
-            {promocoes.length}
-          </p>
-
-          <p className="text-sm text-zinc-500">
-            Promoções
-          </p>
+          <p className="text-3xl font-black mt-3">{promocoes.length}</p>
+          <p className="text-sm text-zinc-500">Promoções</p>
         </div>
 
         <div className="bg-white rounded-3xl p-5 shadow-sm">
           <Ticket className="text-[#FF5A1F]" />
-
-          <p className="text-3xl font-black mt-3">
-            {cupons.length}
-          </p>
-
-          <p className="text-sm text-zinc-500">
-            Cupons recebidos
-          </p>
+          <p className="text-3xl font-black mt-3">{cupons.length}</p>
+          <p className="text-sm text-zinc-500">Cupons recebidos</p>
         </div>
       </section>
 
@@ -383,32 +364,20 @@ export default function PainelRestaurante() {
       <section className="mt-8">
         <div className="flex items-center gap-2 mb-4">
           <Store className="text-[#FF5A1F]" />
-          <h2 className="text-xl font-black">
-            Minhas promoções
-          </h2>
+          <h2 className="text-xl font-black">Minhas promoções</h2>
         </div>
 
         <div className="space-y-4">
           {promocoes.length === 0 && (
             <div className="bg-white rounded-3xl p-6 text-center shadow-sm">
-              <p className="font-black">
-                Nenhuma promoção encontrada.
-              </p>
+              <p className="font-black">Nenhuma promoção encontrada.</p>
             </div>
           )}
 
           {promocoes.map((promo) => {
-            const total = Number(
-              promo.quantidade_total || 0
-            );
-
-            const resgatada = Number(
-              promo.quantidade_resgatada || 0
-            );
-
-            const restantes =
-              total > 0 ? total - resgatada : null;
-
+            const total = Number(promo.quantidade_total || 0);
+            const resgatada = Number(promo.quantidade_resgatada || 0);
+            const restantes = total > 0 ? total - resgatada : null;
             const esgotada = promocaoEsgotada(promo);
 
             return (

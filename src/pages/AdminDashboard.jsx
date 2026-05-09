@@ -16,6 +16,9 @@ import { supabase } from "../services/supabase";
 const WEBHOOK_RESTAURANTE_APROVADO =
   "https://nuxtechbr.app.n8n.cloud/webhook/promoja-restaurante-aprovado";
 
+const WEBHOOK_RESTAURANTE_RECUSADO =
+  "https://nuxtechbr.app.n8n.cloud/webhook/promoja-restaurante-recusado";
+
 const WEBHOOK_PROMOCAO_APROVADA =
   "https://nuxtechbr.app.n8n.cloud/webhook/promoja-promocao-aprovada";
 
@@ -96,6 +99,39 @@ export default function AdminDashboard() {
     setCarregando(false);
   }
 
+  async function enviarWebhook(url, dados) {
+    try {
+      const resposta = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(dados),
+      });
+
+      if (!resposta.ok) {
+        const texto = await resposta.text();
+        console.log("Erro no webhook:", resposta.status, texto);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.log("Erro ao chamar webhook:", error);
+      return false;
+    }
+  }
+
+  function limparTelefone(telefone) {
+    const numero = String(telefone || "").replace(/\D/g, "");
+
+    if (numero.startsWith("55")) {
+      return numero;
+    }
+
+    return `55${numero}`;
+  }
+
   async function aprovarRestaurante(restaurante) {
     const { error } = await supabase
       .from("restaurants")
@@ -107,36 +143,35 @@ export default function AdminDashboard() {
       return;
     }
 
-    const telefoneLimpo = String(restaurante.whatsapp_comercial || "").replace(/\D/g, "");
+    const enviado = await enviarWebhook(WEBHOOK_RESTAURANTE_APROVADO, {
+      nome: restaurante.nome,
+      responsavel: restaurante.responsavel,
+      whatsapp: limparTelefone(restaurante.whatsapp_comercial),
+      email: restaurante.email,
+      cidade: restaurante.cidade,
+      bairro: restaurante.bairro,
+      categoria: restaurante.categoria,
+      status: "ativo",
+      login_url: "https://usepromoja.com.br/login",
+      mensagem:
+        "🎉 Parabéns! Seu cadastro no PromoJá foi aprovado.\n\nAgora você já pode acessar o painel do parceiro, criar suas promoções e começar a aparecer para clientes da sua região.\n\nAcesse aqui:\nhttps://usepromoja.com.br/login",
+    });
 
-    try {
-      await fetch(WEBHOOK_RESTAURANTE_APROVADO, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          nome: restaurante.nome,
-          responsavel: restaurante.responsavel,
-          whatsapp: telefoneLimpo,
-          email: restaurante.email,
-          cidade: restaurante.cidade,
-          bairro: restaurante.bairro,
-          categoria: restaurante.categoria,
-          status: "ativo",
-        }),
-      });
-    } catch (webhookError) {
-      console.log("Erro webhook restaurante aprovado:", webhookError);
+    if (enviado) {
+      alert("Restaurante aprovado! Mensagem automática enviada.");
+    } else {
+      alert("Restaurante aprovado, mas a mensagem automática falhou.");
     }
 
-    alert("Restaurante aprovado! Mensagem automática enviada.");
     setRestauranteSelecionado(null);
     carregarAdmin();
   }
 
   async function recusarRestaurante(id) {
     if (!confirm("Tem certeza que deseja recusar este restaurante?")) return;
+
+    const restaurante =
+      restauranteSelecionado || restaurantesPendentes.find((r) => r.id === id);
 
     const { error } = await supabase
       .from("restaurants")
@@ -148,7 +183,29 @@ export default function AdminDashboard() {
       return;
     }
 
-    alert("Restaurante recusado.");
+    let enviado = true;
+
+    if (restaurante) {
+      enviado = await enviarWebhook(WEBHOOK_RESTAURANTE_RECUSADO, {
+        nome: restaurante.nome,
+        responsavel: restaurante.responsavel,
+        whatsapp: limparTelefone(restaurante.whatsapp_comercial),
+        email: restaurante.email,
+        cidade: restaurante.cidade,
+        bairro: restaurante.bairro,
+        categoria: restaurante.categoria,
+        status: "recusado",
+        mensagem:
+          "❌ Seu cadastro no PromoJá não foi aprovado neste momento.\n\nVocê pode ajustar as informações e tentar novamente futuramente.",
+      });
+    }
+
+    if (enviado) {
+      alert("Restaurante recusado! Mensagem automática enviada.");
+    } else {
+      alert("Restaurante recusado, mas a mensagem automática falhou.");
+    }
+
     setRestauranteSelecionado(null);
     carregarAdmin();
   }
@@ -167,6 +224,8 @@ export default function AdminDashboard() {
       return;
     }
 
+    let enviado = true;
+
     if (promocao?.restaurant_id) {
       const { data: restaurante } = await supabase
         .from("restaurants")
@@ -174,111 +233,78 @@ export default function AdminDashboard() {
         .eq("id", promocao.restaurant_id)
         .maybeSingle();
 
-      try {
-        await fetch(WEBHOOK_PROMOCAO_APROVADA, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            titulo: promocao.titulo,
-            descricao: promocao.descricao,
-            preco_antigo: promocao.preco_antigo,
-            preco_promocional: promocao.preco_promocional,
-            imagem_url: promocao.imagem_url,
-            restaurante: restaurante?.nome,
-            responsavel: restaurante?.responsavel,
-            whatsapp: String(restaurante?.whatsapp_comercial || "").replace(/\D/g, ""),
-            email: restaurante?.email,
-            status: "Ativa",
-          }),
-        });
-      } catch (webhookError) {
-        console.log("Erro webhook promoção aprovada:", webhookError);
-      }
+      enviado = await enviarWebhook(WEBHOOK_PROMOCAO_APROVADA, {
+        titulo: promocao.titulo,
+        descricao: promocao.descricao,
+        preco_antigo: promocao.preco_antigo,
+        preco_promocional: promocao.preco_promocional,
+        imagem_url: promocao.imagem_url,
+        restaurante: restaurante?.nome,
+        responsavel: restaurante?.responsavel,
+        whatsapp: limparTelefone(restaurante?.whatsapp_comercial),
+        email: restaurante?.email,
+        status: "Ativa",
+        mensagem:
+          "🎉 Sua promoção foi aprovada no PromoJá!\n\nEla já está visível para os clientes da sua região 🚀",
+      });
     }
 
-    alert("Promoção aprovada! Mensagem automática enviada.");
+    if (enviado) {
+      alert("Promoção aprovada! Mensagem automática enviada.");
+    } else {
+      alert("Promoção aprovada, mas a mensagem automática falhou.");
+    }
+
     setPromoSelecionada(null);
     carregarAdmin();
   }
 
-  async function recusarRestaurante(id) {
-  if (
-    !confirm(
-      "Tem certeza que deseja recusar este restaurante?"
-    )
-  )
-    return;
+  async function recusarPromocao(id) {
+    if (!confirm("Tem certeza que deseja recusar esta promoção?")) return;
 
-  const restaurante =
-    restauranteSelecionado ||
-    restaurantesPendentes.find(
-      (r) => r.id === id
-    );
+    const promocao =
+      promoSelecionada || promocoesPendentes.find((p) => p.id === id);
 
-  const { error } = await supabase
-    .from("restaurants")
-    .update({ status: "recusado" })
-    .eq("id", id);
+    const { error } = await supabase
+      .from("promotions")
+      .update({ status: "Recusada" })
+      .eq("id", id);
 
-  if (error) {
-    alert(error.message);
-    return;
-  }
-
-  if (restaurante) {
-    try {
-      await fetch(
-        "https://nuxtechbr.app.n8n.cloud/webhook/promoja-restaurante-recusado",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            nome: restaurante.nome,
-            responsavel:
-              restaurante.responsavel,
-
-            whatsapp: String(
-              restaurante.whatsapp_comercial ||
-                ""
-            ).replace(/\D/g, ""),
-
-            email:
-              restaurante.email,
-
-            cidade:
-              restaurante.cidade,
-
-            bairro:
-              restaurante.bairro,
-
-            categoria:
-              restaurante.categoria,
-
-            status: "recusado",
-          }),
-        }
-      );
-    } catch (webhookError) {
-      console.log(
-        "Erro webhook restaurante recusado:",
-        webhookError
-      );
+    if (error) {
+      alert(error.message);
+      return;
     }
+
+    let enviado = true;
+
+    if (promocao?.restaurant_id) {
+      const { data: restaurante } = await supabase
+        .from("restaurants")
+        .select("*")
+        .eq("id", promocao.restaurant_id)
+        .maybeSingle();
+
+      enviado = await enviarWebhook(WEBHOOK_PROMOCAO_RECUSADA, {
+        titulo: promocao.titulo,
+        restaurante: restaurante?.nome,
+        responsavel: restaurante?.responsavel,
+        whatsapp: limparTelefone(restaurante?.whatsapp_comercial),
+        email: restaurante?.email,
+        status: "Recusada",
+        mensagem:
+          "❌ Sua promoção não foi aprovada desta vez.\n\nVerifique as informações e tente novamente no painel do parceiro.",
+      });
+    }
+
+    if (enviado) {
+      alert("Promoção recusada! Mensagem automática enviada.");
+    } else {
+      alert("Promoção recusada, mas a mensagem automática falhou.");
+    }
+
+    setPromoSelecionada(null);
+    carregarAdmin();
   }
-
-  alert(
-    "Restaurante recusado! Mensagem automática enviada."
-  );
-
-  setRestauranteSelecionado(null);
-
-  carregarAdmin();
-}
 
   useEffect(() => {
     carregarAdmin();
@@ -486,12 +512,27 @@ export default function AdminDashboard() {
           </p>
 
           <div className="mt-5 bg-[#F7F7F7] rounded-2xl p-4">
-            <Detalhe label="Preço antigo" valor={`R$ ${promoSelecionada.preco_antigo || "0,00"}`} />
-            <Detalhe label="Preço promocional" valor={`R$ ${promoSelecionada.preco_promocional || "0,00"}`} />
+            <Detalhe
+              label="Preço antigo"
+              valor={`R$ ${promoSelecionada.preco_antigo || "0,00"}`}
+            />
+            <Detalhe
+              label="Preço promocional"
+              valor={`R$ ${promoSelecionada.preco_promocional || "0,00"}`}
+            />
             <Detalhe label="Categoria" valor={promoSelecionada.categoria} />
             <Detalhe label="Status" valor={promoSelecionada.status} />
-            <Detalhe label="Validade" valor={promoSelecionada.validade || promoSelecionada.data_validade} />
-            <Detalhe label="Cupons disponíveis" valor={promoSelecionada.quantidade || promoSelecionada.cupons_disponiveis} />
+            <Detalhe
+              label="Validade"
+              valor={promoSelecionada.validade || promoSelecionada.data_validade}
+            />
+            <Detalhe
+              label="Cupons disponíveis"
+              valor={
+                promoSelecionada.quantidade ||
+                promoSelecionada.cupons_disponiveis
+              }
+            />
           </div>
 
           <div className="flex gap-3 mt-6">

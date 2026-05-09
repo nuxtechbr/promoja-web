@@ -237,11 +237,11 @@ export default function CadastroRestaurante() {
           </div>
 
           <Link
-            to="/"
-            className="mt-5 w-full bg-[#FF5A1F] text-white py-4 rounded-2xl font-black flex items-center justify-center"
-          >
-            Voltar para o PromoJá
-          </Link>
+  to="/login"
+  className="mt-5 w-full bg-[#FF5A1F] text-white py-4 rounded-2xl font-black flex items-center justify-center shadow-lg"
+>
+  Acessar painel do parceiro
+</Link>
         </section>
       </main>
     );
