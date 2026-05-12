@@ -16,6 +16,9 @@ export default function Login() {
 
   async function fazerLogin(event) {
     event.preventDefault();
+
+    if (carregando) return;
+
     setCarregando(true);
 
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -31,28 +34,33 @@ export default function Login() {
 
     const user = data.user;
 
-    const { data: role } = await supabase
-      .from("user_roles")
+    // ADMIN
+    const { data: admin } = await supabase
+      .from("admin_users")
       .select("*")
       .eq("auth_id", user.id)
       .maybeSingle();
 
-    if (role?.tipo === "admin") {
-      await supabase.auth.signOut();
+    if (admin) {
       setCarregando(false);
-      alert("Este e-mail pertence à administração. Use o login administrativo.");
-      navigate("/admin-login");
+      navigate("/admin");
       return;
     }
 
-    if (role?.tipo === "parceiro") {
-      await supabase.auth.signOut();
+    // PARCEIRO
+    const { data: restaurante } = await supabase
+      .from("restaurants")
+      .select("*")
+      .eq("auth_id", user.id)
+      .maybeSingle();
+
+    if (restaurante) {
       setCarregando(false);
-      alert("Este e-mail pertence a uma conta de parceiro. Use o login do parceiro.");
-      navigate("/parceiro/login");
+      navigate("/parceiro/painel");
       return;
     }
 
+    // CLIENTE NORMAL
     setCarregando(false);
 
     if (redirect) {
@@ -126,7 +134,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={carregando}
-            className="w-full bg-[#FF5A1F] text-white py-4 rounded-2xl font-black text-lg"
+            className="w-full bg-[#FF5A1F] text-white py-4 rounded-2xl font-black text-lg disabled:opacity-60"
           >
             {carregando ? "Entrando..." : "Entrar"}
           </button>

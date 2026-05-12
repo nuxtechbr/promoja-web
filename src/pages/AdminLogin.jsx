@@ -10,6 +10,9 @@ export default function AdminLogin() {
 
   async function entrar(e) {
     e.preventDefault();
+
+    if (loading) return;
+
     setLoading(true);
 
     const emailFormatado = email.trim().toLowerCase();
@@ -25,34 +28,37 @@ export default function AdminLogin() {
       return;
     }
 
-    const { data: role } = await supabase
-      .from("user_roles")
+    const user = data.user;
+
+    const { data: admin } = await supabase
+      .from("admin_users")
       .select("*")
-      .eq("auth_id", data.user.id)
+      .eq("auth_id", user.id)
       .maybeSingle();
 
-    if (role?.tipo !== "admin") {
-      await supabase.auth.signOut();
+    if (admin) {
       setLoading(false);
-
-      if (role?.tipo === "parceiro") {
-        alert("Este e-mail pertence a uma conta de parceiro. Use o login do parceiro.");
-        window.location.href = "/parceiro/login";
-        return;
-      }
-
-      if (role?.tipo === "cliente") {
-        alert("Este e-mail pertence a uma conta de cliente. Use o login do cliente.");
-        window.location.href = "/login";
-        return;
-      }
-
-      alert("Acesso negado. Este usuário não é administrador.");
+      window.location.href = "/admin";
       return;
     }
 
+    const { data: restaurante } = await supabase
+      .from("restaurants")
+      .select("*")
+      .eq("auth_id", user.id)
+      .maybeSingle();
+
+    await supabase.auth.signOut();
     setLoading(false);
-    window.location.href = "/admin";
+
+    if (restaurante) {
+      alert("Este e-mail pertence a uma conta de parceiro. Use o login do parceiro.");
+      window.location.href = "/parceiro/login";
+      return;
+    }
+
+    alert("Acesso negado. Este usuário não é administrador.");
+    window.location.href = "/login";
   }
 
   return (
@@ -88,7 +94,7 @@ export default function AdminLogin() {
 
         <label className="text-sm font-bold">Senha</label>
 
-        <div className="relative mt-2 mb-5">
+        <div className="relative mt-2 mb-3">
           <input
             type={mostrarSenha ? "text" : "password"}
             value={senha}
@@ -96,13 +102,6 @@ export default function AdminLogin() {
             className="w-full bg-[#0F0F10] border border-white/10 rounded-2xl px-4 py-4 pr-14 outline-none focus:border-[#FF5A1F]"
             required
           />
-
-          <a
-  href="/recuperar-senha"
-  className="block text-right text-sm font-bold text-[#FF5A1F] mb-5"
->
-  Esqueci minha senha
-</a>
 
           <button
             type="button"
@@ -113,9 +112,16 @@ export default function AdminLogin() {
           </button>
         </div>
 
+        <a
+          href="/recuperar-senha"
+          className="block text-right text-sm font-bold text-[#FF5A1F] mb-5"
+        >
+          Esqueci minha senha
+        </a>
+
         <button
           disabled={loading}
-          className="w-full bg-[#FF5A1F] text-white rounded-2xl py-4 font-black"
+          className="w-full bg-[#FF5A1F] text-white rounded-2xl py-4 font-black disabled:opacity-60"
         >
           {loading ? "Entrando..." : "Entrar no painel"}
         </button>

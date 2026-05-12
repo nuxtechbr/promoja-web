@@ -13,6 +13,9 @@ export default function LoginParceiro() {
 
   async function entrar(event) {
     event.preventDefault();
+
+    if (carregando) return;
+
     setCarregando(true);
 
     try {
@@ -31,28 +34,20 @@ export default function LoginParceiro() {
 
       const authId = data.user.id;
 
-      const { data: role } = await supabase
-        .from("user_roles")
+      // ADMIN
+      const { data: admin } = await supabase
+        .from("admin_users")
         .select("*")
         .eq("auth_id", authId)
         .maybeSingle();
 
-      if (role?.tipo === "admin") {
-        await supabase.auth.signOut();
-        alert("Este e-mail pertence à administração. Use o login administrativo.");
-        navigate("/admin-login");
+      if (admin) {
         setCarregando(false);
+        navigate("/admin");
         return;
       }
 
-      if (role?.tipo === "cliente") {
-        await supabase.auth.signOut();
-        alert("Este e-mail pertence a uma conta de cliente. Use o login do cliente.");
-        navigate("/login");
-        setCarregando(false);
-        return;
-      }
-
+      // PARCEIRO
       const { data: restaurante, error: restauranteError } = await supabase
         .from("restaurants")
         .select("*")
@@ -61,20 +56,32 @@ export default function LoginParceiro() {
 
       if (restauranteError || !restaurante) {
         await supabase.auth.signOut();
+
         alert("Este acesso é exclusivo para restaurantes parceiros.");
+
         setCarregando(false);
+        navigate("/login");
         return;
       }
 
-      const statusRestaurante = String(restaurante.status || "").toLowerCase();
+      const statusRestaurante = String(
+        restaurante.status || ""
+      ).toLowerCase();
 
-      const statusPermitidos = ["ativo", "aprovado", "aprovada", "active"];
+      const statusPermitidos = [
+        "ativo",
+        "aprovado",
+        "aprovada",
+        "active",
+      ];
 
       if (!statusPermitidos.includes(statusRestaurante)) {
         await supabase.auth.signOut();
+
         alert(
           "Seu cadastro ainda está em análise. A equipe PromoJá responderá em até 24h."
         );
+
         setCarregando(false);
         return;
       }
@@ -83,7 +90,9 @@ export default function LoginParceiro() {
       navigate("/parceiro/painel");
     } catch (erro) {
       console.log(erro);
+
       alert("Erro ao entrar. Tente novamente.");
+
       setCarregando(false);
     }
   }
@@ -109,20 +118,27 @@ export default function LoginParceiro() {
             <LogIn size={32} />
           </div>
 
-          <h1 className="text-3xl font-black">Login do parceiro</h1>
+          <h1 className="text-3xl font-black">
+            Login do parceiro
+          </h1>
 
           <p className="text-sm text-zinc-300 mt-2">
             Acesse o painel do seu restaurante.
           </p>
         </div>
 
-        <form onSubmit={entrar} className="mt-6 space-y-4">
+        <form
+          onSubmit={entrar}
+          className="mt-6 space-y-4"
+        >
           <input
             type="email"
             required
             placeholder="E-mail"
             value={email}
-            onChange={(e) => setEmail(e.target.value.toLowerCase())}
+            onChange={(e) =>
+              setEmail(e.target.value.toLowerCase())
+            }
             className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
           />
 
@@ -138,10 +154,16 @@ export default function LoginParceiro() {
 
             <button
               type="button"
-              onClick={() => setMostrarSenha(!mostrarSenha)}
+              onClick={() =>
+                setMostrarSenha(!mostrarSenha)
+              }
               className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500"
             >
-              {mostrarSenha ? <EyeOff size={22} /> : <Eye size={22} />}
+              {mostrarSenha ? (
+                <EyeOff size={22} />
+              ) : (
+                <Eye size={22} />
+              )}
             </button>
           </div>
 
@@ -155,9 +177,11 @@ export default function LoginParceiro() {
           <button
             type="submit"
             disabled={carregando}
-            className="w-full bg-[#FF5A1F] text-white py-4 rounded-2xl font-black text-lg shadow-lg"
+            className="w-full bg-[#FF5A1F] text-white py-4 rounded-2xl font-black text-lg shadow-lg disabled:opacity-60"
           >
-            {carregando ? "Entrando..." : "Entrar no painel"}
+            {carregando
+              ? "Entrando..."
+              : "Entrar no painel"}
           </button>
 
           <p className="text-center text-sm text-zinc-500">
