@@ -36,10 +36,10 @@ export default function LoginParceiro() {
 
       // ADMIN
       const { data: admin } = await supabase
-        .from("admin_users")
-        .select("*")
-        .eq("auth_id", authId)
-        .maybeSingle();
+  .from("admin_users")
+  .select("*")
+  .or(`auth_id.eq.${authId},email.eq.${data.user.email}`)
+  .maybeSingle();
 
       if (admin) {
         setCarregando(false);

@@ -36,11 +36,11 @@ export default function Login() {
 
     // ADMIN
     const { data: admin } = await supabase
-      .from("admin_users")
-      .select("*")
-      .eq("auth_id", user.id)
-      .maybeSingle();
-
+  .from("admin_users")
+  .select("*")
+  .or(`auth_id.eq.${user.id},email.eq.${user.email}`)
+  .maybeSingle();
+  
     if (admin) {
       setCarregando(false);
       navigate("/admin");

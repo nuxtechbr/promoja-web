@@ -31,11 +31,11 @@ export default function AdminLogin() {
     const user = data.user;
 
     const { data: admin } = await supabase
-      .from("admin_users")
-      .select("*")
-      .eq("auth_id", user.id)
-      .maybeSingle();
-
+  .from("admin_users")
+  .select("*")
+  .or(`auth_id.eq.${user.id},email.eq.${user.email}`)
+  .maybeSingle();
+  
     if (admin) {
       setLoading(false);
       window.location.href = "/admin";
