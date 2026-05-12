@@ -16,15 +16,25 @@ import { supabase } from "../services/supabase";
 const WEBHOOK_ADMIN =
   "https://nuxtechbr.app.n8n.cloud/webhook/fce175b7-c032-41b2-b49c-92f03735e095";
 
+const WEBHOOK_PARCEIRO_CADASTRO =
+  "https://nuxtechbr.app.n8n.cloud/webhook/promoja-parceiro-cadastro";
+
 export default function CadastroRestaurante() {
   const [nome, setNome] = useState("");
   const [responsavel, setResponsavel] = useState("");
   const [email, setEmail] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
   const [categoria, setCategoria] = useState("");
+
+  const [cep, setCep] = useState("");
   const [endereco, setEndereco] = useState("");
+  const [numero, setNumero] = useState("");
+  const [complemento, setComplemento] = useState("");
   const [cidade, setCidade] = useState("");
+  const [estado, setEstado] = useState("");
   const [bairro, setBairro] = useState("");
+  const [buscandoCep, setBuscandoCep] = useState(false);
+
   const [instagram, setInstagram] = useState("");
 
   const [latitude, setLatitude] = useState(null);
@@ -48,6 +58,48 @@ export default function CadastroRestaurante() {
   function mostrarErro(mensagem) {
     setErroTela(mensagem);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function formatarWhatsappBrasil(numero) {
+    const limpo = String(numero || "").replace(/\D/g, "");
+
+    if (!limpo) return "";
+
+    if (limpo.startsWith("55")) {
+      return limpo;
+    }
+
+    return `55${limpo}`;
+  }
+
+  async function buscarEnderecoPorCep(valorCep) {
+    const cepLimpo = String(valorCep || "").replace(/\D/g, "");
+
+    if (cepLimpo.length !== 8) return;
+
+    setErroTela("");
+    setBuscandoCep(true);
+
+    try {
+      const resposta = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
+      const dados = await resposta.json();
+
+      if (dados.erro) {
+        mostrarErro("CEP não encontrado. Confira o número digitado.");
+        setBuscandoCep(false);
+        return;
+      }
+
+      setEndereco(dados.logradouro || "");
+      setBairro(dados.bairro || "");
+      setCidade(dados.localidade || "");
+      setEstado(dados.uf || "");
+    } catch (error) {
+      console.log(error);
+      mostrarErro("Não foi possível buscar o endereço pelo CEP.");
+    }
+
+    setBuscandoCep(false);
   }
 
   function pegarLocalizacao() {
@@ -98,7 +150,21 @@ export default function CadastroRestaurante() {
         body: formData,
       });
     } catch (webhookError) {
-      console.log("Erro ao enviar webhook restaurante:", webhookError);
+      console.log("Erro ao enviar webhook admin:", webhookError);
+    }
+  }
+
+  async function avisarParceiroCadastro(payload) {
+    try {
+      await fetch(WEBHOOK_PARCEIRO_CADASTRO, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+    } catch (webhookError) {
+      console.log("Erro ao enviar webhook parceiro:", webhookError);
     }
   }
 
@@ -110,9 +176,29 @@ export default function CadastroRestaurante() {
 
     const emailFormatado = email.toLowerCase().trim();
     const telefoneLimpo = whatsapp.replace(/\D/g, "");
+    const telefoneWhatsapp = formatarWhatsappBrasil(telefoneLimpo);
+    const cepLimpo = cep.replace(/\D/g, "");
 
     if (!localizacaoOk || !latitude || !longitude) {
       mostrarErro("Você precisa permitir a localização para continuar.");
+      setCarregando(false);
+      return;
+    }
+
+    if (cepLimpo.length !== 8) {
+      mostrarErro("Informe um CEP válido.");
+      setCarregando(false);
+      return;
+    }
+
+    if (!endereco.trim() || !bairro.trim() || !cidade.trim() || !estado.trim()) {
+      mostrarErro("Preencha o endereço completo do restaurante.");
+      setCarregando(false);
+      return;
+    }
+
+    if (!numero.trim()) {
+      mostrarErro("Informe o número do endereço.");
       setCarregando(false);
       return;
     }
@@ -193,8 +279,12 @@ export default function CadastroRestaurante() {
         email: emailFormatado,
         whatsapp_comercial: telefoneLimpo,
         categoria,
+        cep: cepLimpo,
         endereco: endereco.trim(),
+        numero: numero.trim(),
+        complemento: complemento.trim(),
         cidade: cidade.trim(),
+        estado: estado.trim(),
         bairro: bairro.trim(),
         instagram: instagram.trim(),
         auth_id: authId,
@@ -232,22 +322,46 @@ export default function CadastroRestaurante() {
       return;
     }
 
-    await avisarAdminTelegram({
+    const enderecoCompleto = `${endereco.trim()}, ${numero.trim()}${
+      complemento.trim() ? ` - ${complemento.trim()}` : ""
+    }, ${bairro.trim()}, ${cidade.trim()} - ${estado.trim()}, CEP ${cepLimpo}`;
+
+    const payloadCadastro = {
       tipo: "Novo restaurante cadastrado",
+      origem: "cadastro_completo_restaurante",
       restaurante: nome.trim(),
+      nome_restaurante: nome.trim(),
       responsavel: responsavel.trim(),
+      nome: responsavel.trim(),
       whatsapp: telefoneLimpo,
+      telefone: telefoneLimpo,
+      whatsapp_formatado: telefoneWhatsapp,
+      telefone_formatado: telefoneWhatsapp,
       email: emailFormatado,
       categoria,
+      cep: cepLimpo,
       endereco: endereco.trim(),
+      numero: numero.trim(),
+      complemento: complemento.trim(),
+      endereco_completo: enderecoCompleto,
       cidade: cidade.trim(),
+      estado: estado.trim(),
       bairro: bairro.trim(),
       instagram: instagram.trim(),
       latitude,
       longitude,
       status: "pendente",
-      mensagem: "Novo restaurante aguardando aprovação no painel admin.",
-    });
+      mensagem:
+        "Recebemos o cadastro do seu restaurante. Nossa equipe vai analisar e entrar em contato em breve.",
+    };
+
+    await Promise.allSettled([
+      avisarAdminTelegram({
+        ...payloadCadastro,
+        mensagem: "Novo restaurante aguardando aprovação no painel admin.",
+      }),
+      avisarParceiroCadastro(payloadCadastro),
+    ]);
 
     setCarregando(false);
     setCadastroEnviado(true);
@@ -371,7 +485,7 @@ export default function CadastroRestaurante() {
           <LocateFixed size={22} />
 
           {buscandoLocalizacao
-           ? "Buscando sua localização..."
+            ? "Buscando sua localização..."
             : localizacaoOk
             ? "Localização ativada"
             : "Ativar localização"}
@@ -441,6 +555,24 @@ export default function CadastroRestaurante() {
         <input
           type="text"
           required
+          placeholder="CEP"
+          value={cep}
+          onChange={(e) => {
+            setCep(e.target.value);
+            buscarEnderecoPorCep(e.target.value);
+          }}
+          className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
+        />
+
+        {buscandoCep && (
+          <p className="text-xs text-zinc-500 -mt-2">
+            Buscando endereço pelo CEP...
+          </p>
+        )}
+
+        <input
+          type="text"
+          required
           placeholder="Endereço"
           value={endereco}
           onChange={(e) => setEndereco(e.target.value)}
@@ -450,9 +582,35 @@ export default function CadastroRestaurante() {
         <input
           type="text"
           required
+          placeholder="Número"
+          value={numero}
+          onChange={(e) => setNumero(e.target.value)}
+          className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
+        />
+
+        <input
+          type="text"
+          placeholder="Complemento (opcional)"
+          value={complemento}
+          onChange={(e) => setComplemento(e.target.value)}
+          className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
+        />
+
+        <input
+          type="text"
+          required
           placeholder="Cidade"
           value={cidade}
           onChange={(e) => setCidade(e.target.value)}
+          className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
+        />
+
+        <input
+          type="text"
+          required
+          placeholder="Estado"
+          value={estado}
+          onChange={(e) => setEstado(e.target.value.toUpperCase())}
           className="w-full bg-white rounded-2xl px-4 py-4 outline-none shadow-sm"
         />
 
@@ -517,7 +675,11 @@ export default function CadastroRestaurante() {
                 }
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500"
               >
-                {mostrarConfirmarSenha ? <EyeOff size={20} /> : <Eye size={20} />}
+                {mostrarConfirmarSenha ? (
+                  <EyeOff size={20} />
+                ) : (
+                  <Eye size={20} />
+                )}
               </button>
             </div>
           </div>
@@ -525,7 +687,7 @@ export default function CadastroRestaurante() {
 
         <button
           type="submit"
-          disabled={carregando || buscandoLocalizacao}
+          disabled={carregando || buscandoLocalizacao || buscandoCep}
           className="w-full bg-[#FF5A1F] text-white py-4 rounded-2xl font-black text-lg shadow-lg disabled:opacity-70"
         >
           {carregando

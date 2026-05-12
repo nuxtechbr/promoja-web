@@ -28,31 +28,100 @@ export default function LoginParceiro() {
 
       if (error || !data?.user) {
         alert("E-mail ou senha inválidos.");
+
         setCarregando(false);
         return;
       }
 
-      const authId = data.user.id;
+      const user = data.user;
+      const authId = user.id;
 
       // ADMIN
       const { data: admin } = await supabase
-  .from("admin_users")
-  .select("*")
-  .or(`auth_id.eq.${authId},email.eq.${data.user.email}`)
-  .maybeSingle();
+        .from("admin_users")
+        .select("*")
+        .eq("auth_id", authId)
+        .maybeSingle();
 
       if (admin) {
-  await supabase.auth.signOut();
+        await supabase.auth.signOut();
 
-  setCarregando(false);
+        setCarregando(false);
 
-  alert(
-    "Este acesso é exclusivo para restaurantes parceiros."
-  );
+        alert(
+          "Este acesso é exclusivo para administradores."
+        );
 
-  return;
-}
-      // PARCEIRO
+        navigate("/admin-login");
+
+        return;
+      }
+
+      // ROLE
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("*")
+        .eq("auth_id", authId)
+        .maybeSingle();
+
+      if (!roleData) {
+        await supabase.auth.signOut();
+
+        setCarregando(false);
+
+        alert(
+          "Sua conta não possui permissão válida."
+        );
+
+        return;
+      }
+
+      const tipo = String(roleData.tipo || "").toLowerCase();
+
+      // CLIENTE NÃO ENTRA
+      if (tipo === "cliente") {
+        await supabase.auth.signOut();
+
+        setCarregando(false);
+
+        alert(
+          "Este acesso é exclusivo para restaurantes parceiros."
+        );
+
+        navigate("/login");
+
+        return;
+      }
+
+      // ADMIN ROLE NÃO ENTRA
+      if (tipo === "admin") {
+        await supabase.auth.signOut();
+
+        setCarregando(false);
+
+        alert(
+          "Este acesso é exclusivo para administradores."
+        );
+
+        navigate("/admin-login");
+
+        return;
+      }
+
+      // SOMENTE PARCEIRO
+      if (tipo !== "parceiro") {
+        await supabase.auth.signOut();
+
+        setCarregando(false);
+
+        alert(
+          "Sua conta não possui acesso ao painel parceiro."
+        );
+
+        return;
+      }
+
+      // RESTAURANTE
       const { data: restaurante, error: restauranteError } = await supabase
         .from("restaurants")
         .select("*")
@@ -62,10 +131,12 @@ export default function LoginParceiro() {
       if (restauranteError || !restaurante) {
         await supabase.auth.signOut();
 
-        alert("Este acesso é exclusivo para restaurantes parceiros.");
+        alert(
+          "Restaurante não encontrado."
+        );
 
         setCarregando(false);
-        navigate("/login");
+
         return;
       }
 
@@ -75,6 +146,7 @@ export default function LoginParceiro() {
 
       const statusPermitidos = [
         "ativo",
+        "ativa",
         "aprovado",
         "aprovada",
         "active",
@@ -88,10 +160,12 @@ export default function LoginParceiro() {
         );
 
         setCarregando(false);
+
         return;
       }
 
       setCarregando(false);
+
       navigate("/parceiro/painel");
     } catch (erro) {
       console.log(erro);

@@ -3,11 +3,6 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Eye, EyeOff, LogIn } from "lucide-react";
 import { supabase } from "../services/supabase";
 
-const ADMIN_EMAILS = [
-  "samuel@usepromoja.com.br",
-  "matheus@usepromoja.com.br",
-];
-
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -35,42 +30,93 @@ export default function Login() {
 
     if (error || !data?.user) {
       setCarregando(false);
+
       alert("E-mail ou senha inválidos.");
       return;
     }
 
     const user = data.user;
-    const emailUsuario = String(
-      user.email || emailFormatado
-    ).toLowerCase();
 
-    // BLOQUEAR ADMIN NO LOGIN CLIENTE
-    if (ADMIN_EMAILS.includes(emailUsuario)) {
+    // VERIFICA ADMIN
+    const { data: adminUser } = await supabase
+      .from("admin_users")
+      .select("*")
+      .eq("auth_id", user.id)
+      .maybeSingle();
+
+    if (adminUser) {
       await supabase.auth.signOut();
 
       setCarregando(false);
 
       alert(
-        "Este acesso é exclusivo para clientes."
+        "Este acesso é exclusivo para administradores. Use o painel admin."
+      );
+
+      navigate("/admin-login");
+
+      return;
+    }
+
+    // VERIFICA ROLE
+    const { data: roleData } = await supabase
+      .from("user_roles")
+      .select("*")
+      .eq("auth_id", user.id)
+      .maybeSingle();
+
+    if (!roleData) {
+      await supabase.auth.signOut();
+
+      setCarregando(false);
+
+      alert(
+        "Sua conta não possui permissão válida."
       );
 
       return;
     }
 
-    // BLOQUEAR PARCEIRO NO LOGIN CLIENTE
-    const { data: restaurante } = await supabase
-      .from("restaurants")
-      .select("*")
-      .eq("auth_id", user.id)
-      .maybeSingle();
+    const tipo = String(roleData.tipo || "").toLowerCase();
 
-    if (restaurante) {
+    // BLOQUEAR PARCEIRO
+    if (tipo === "parceiro") {
       await supabase.auth.signOut();
 
       setCarregando(false);
 
       alert(
-        "Este acesso é exclusivo para clientes."
+        "Este acesso é exclusivo para parceiros."
+      );
+
+      navigate("/parceiro/login");
+
+      return;
+    }
+
+    // BLOQUEAR ADMIN POR ROLE
+    if (tipo === "admin") {
+      await supabase.auth.signOut();
+
+      setCarregando(false);
+
+      alert(
+        "Este acesso é exclusivo para administradores."
+      );
+
+      navigate("/admin-login");
+
+      return;
+    }
+
+    // PERMITIR SOMENTE CLIENTE
+    if (tipo !== "cliente") {
+      await supabase.auth.signOut();
+
+      setCarregando(false);
+
+      alert(
+        "Sua conta não possui acesso ao aplicativo."
       );
 
       return;

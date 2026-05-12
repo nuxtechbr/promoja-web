@@ -7,6 +7,24 @@ export default function Ranking() {
   const [ranking, setRanking] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  function normalizarStatus(valor) {
+    return String(valor || "").toLowerCase();
+  }
+
+  function statusAtivo(valor) {
+    return ["ativo", "ativa", "aprovado", "aprovada"].includes(
+      normalizarStatus(valor)
+    );
+  }
+
+  function getRestaurantId(item) {
+    return item.restaurant_id || item.id;
+  }
+
+  function getNota(item) {
+    return Number(item.average_rating || 0).toFixed(1);
+  }
+
   async function carregarRanking() {
     setLoading(true);
 
@@ -17,25 +35,51 @@ export default function Ranking() {
 
     if (error) {
       console.error("Erro ao carregar ranking:", error);
+      setRanking([]);
       setLoading(false);
       return;
     }
 
-    setRanking(data || []);
+    const idsRanking = (data || [])
+      .map((item) => getRestaurantId(item))
+      .filter(Boolean);
+
+    if (idsRanking.length === 0) {
+      setRanking([]);
+      setLoading(false);
+      return;
+    }
+
+    const { data: restaurantesAtivos, error: restaurantesError } = await supabase
+      .from("restaurants")
+      .select("id,status")
+      .in("id", idsRanking)
+      .in("status", ["ativo", "ativa", "aprovado", "aprovada"]);
+
+    if (restaurantesError) {
+      console.error("Erro ao validar restaurantes ativos:", restaurantesError);
+      setRanking([]);
+      setLoading(false);
+      return;
+    }
+
+    const idsAtivos = new Set(
+      (restaurantesAtivos || [])
+        .filter((restaurante) => statusAtivo(restaurante.status))
+        .map((restaurante) => Number(restaurante.id))
+    );
+
+    const rankingFiltrado = (data || []).filter((item) =>
+      idsAtivos.has(Number(getRestaurantId(item)))
+    );
+
+    setRanking(rankingFiltrado);
     setLoading(false);
   }
 
   useEffect(() => {
     carregarRanking();
   }, []);
-
-  function getRestaurantId(item) {
-    return item.restaurant_id || item.id;
-  }
-
-  function getNota(item) {
-    return Number(item.average_rating || 0).toFixed(1);
-  }
 
   return (
     <div className="min-h-screen bg-[#F7F5F2] px-4 py-6 pb-24">
@@ -68,9 +112,11 @@ export default function Ranking() {
         {!loading && ranking.length === 0 && (
           <div className="bg-white rounded-3xl p-6 text-center shadow-sm">
             <Store className="mx-auto mb-3 text-zinc-400" size={32} />
+
             <p className="font-black text-zinc-700">
               Nenhum restaurante no ranking ainda.
             </p>
+
             <p className="text-sm text-zinc-500 mt-1">
               Em breve os restaurantes mais movimentados aparecerão aqui.
             </p>
@@ -84,7 +130,7 @@ export default function Ranking() {
             return (
               <Link
                 key={`${restaurantId}-${index}`}
-              to={`/loja/${item.restaurant_id}`}
+                to={`/loja/${restaurantId}`}
                 className="block bg-white rounded-[1.7rem] p-4 shadow-sm border border-orange-100 active:scale-[0.98] transition-all"
               >
                 <div className="flex items-center gap-4">

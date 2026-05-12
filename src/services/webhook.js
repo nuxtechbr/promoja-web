@@ -1,14 +1,34 @@
 export async function dispararWebhook(url, payload) {
-  if (!url) return
+  if (!url) return false;
 
   try {
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const resposta = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(8000),
-    })
+    });
+
+    if (!resposta.ok) {
+      const erroTexto = await resposta.text();
+
+      console.warn(
+        "[Webhook] Erro HTTP:",
+        resposta.status,
+        erroTexto
+      );
+
+      return false;
+    }
+
+    return true;
   } catch (err) {
-    console.warn('[Webhook] Falha ao disparar webhook (não crítico):', err?.message)
+    console.warn(
+      "[Webhook] Falha ao disparar webhook:",
+      err?.message
+    );
+
+    return false;
   }
 }

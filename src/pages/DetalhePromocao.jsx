@@ -27,6 +27,22 @@ export default function DetalhePromocao() {
     carregarDados();
   }, [id]);
 
+  function normalizarStatus(valor) {
+    return String(valor || "").toLowerCase();
+  }
+
+  function statusAtivo(valor) {
+    return ["ativa", "ativo", "aprovada", "aprovado"].includes(
+      normalizarStatus(valor)
+    );
+  }
+
+  function statusPausado(valor) {
+    return ["pausada", "pausado", "desativada", "desativado", "inativa", "inativo"].includes(
+      normalizarStatus(valor)
+    );
+  }
+
   async function carregarDados() {
     setLoading(true);
 
@@ -48,17 +64,38 @@ export default function DetalhePromocao() {
       return;
     }
 
-    setPromocao(promoData);
-
-    if (promoData.restaurant_id) {
-      const { data: restauranteData } = await supabase
-        .from("restaurants")
-        .select("*")
-        .eq("id", promoData.restaurant_id)
-        .maybeSingle();
-
-      setRestaurante(restauranteData || null);
+    if (!statusAtivo(promoData.status)) {
+      alert("Promoção indisponível.");
+      navigate("/");
+      return;
     }
+
+    if (!promoData.restaurant_id) {
+      alert("Restaurante não encontrado.");
+      navigate("/");
+      return;
+    }
+
+    const { data: restauranteData, error: restauranteError } = await supabase
+      .from("restaurants")
+      .select("*")
+      .eq("id", promoData.restaurant_id)
+      .maybeSingle();
+
+    if (restauranteError || !restauranteData) {
+      alert("Restaurante não encontrado.");
+      navigate("/");
+      return;
+    }
+
+    if (!statusAtivo(restauranteData.status)) {
+      alert("Esse restaurante não está disponível.");
+      navigate("/");
+      return;
+    }
+
+    setPromocao(promoData);
+    setRestaurante(restauranteData);
 
     if (user) {
       const { data: resgateExistente } = await supabase
@@ -86,18 +123,12 @@ export default function DetalhePromocao() {
     );
   }
 
-  function statusNormalizado() {
-    return String(promocao?.status || "").toLowerCase();
-  }
-
   function promocaoAtiva() {
-    return ["ativa", "ativo", "aprovada", "aprovado"].includes(
-      statusNormalizado()
-    );
+    return statusAtivo(promocao?.status);
   }
 
   function promocaoPausada() {
-    return ["pausada", "desativada", "inativa"].includes(statusNormalizado());
+    return statusPausado(promocao?.status);
   }
 
   function promocaoEsgotada() {
@@ -105,6 +136,12 @@ export default function DetalhePromocao() {
     const usadas = Number(promocao?.quantidade_resgatada || 0);
 
     return total > 0 && usadas >= total;
+  }
+
+  function promocaoVencida() {
+    if (!promocao?.validade) return false;
+
+    return new Date(promocao.validade).getTime() <= Date.now();
   }
 
   function quantidadeRestante() {
@@ -128,8 +165,9 @@ export default function DetalhePromocao() {
     navigate(`/login?redirect=${encodeURIComponent(redirect)}`);
   }
 
- async function resgatarCupom() {
-  if (resgatando) return;
+  async function resgatarCupom() {
+    if (resgatando) return;
+
     if (!usuario) {
       irParaLogin();
       return;
@@ -142,6 +180,11 @@ export default function DetalhePromocao() {
 
     if (promocaoPausada()) {
       alert("Promoção pausada.");
+      return;
+    }
+
+    if (promocaoVencida()) {
+      alert("Promoção encerrada.");
       return;
     }
 
@@ -229,6 +272,7 @@ export default function DetalhePromocao() {
   }
 
   const restante = quantidadeRestante();
+  const vencida = promocaoVencida();
 
   return (
     <main className="min-h-screen bg-[#111] text-white pb-36">
@@ -303,6 +347,10 @@ export default function DetalhePromocao() {
             {promocaoEsgotada() ? (
               <span className="bg-zinc-700 text-white px-4 py-2 rounded-full text-xs font-black">
                 ESGOTADA
+              </span>
+            ) : vencida ? (
+              <span className="bg-zinc-700 text-white px-4 py-2 rounded-full text-xs font-black">
+                ENCERRADA
               </span>
             ) : (
               <span className="bg-green-500 text-white px-4 py-2 rounded-full text-xs font-black">
@@ -390,6 +438,7 @@ export default function DetalhePromocao() {
               resgatando ||
               promocaoEsgotada() ||
               promocaoPausada() ||
+              vencida ||
               !promocaoAtiva()
             }
             className="w-full bg-[#FF5A1F] text-white rounded-3xl py-5 font-black text-lg shadow-[0_0_30px_rgba(255,90,31,0.35)] flex items-center justify-center gap-3 disabled:opacity-60"
@@ -403,6 +452,8 @@ export default function DetalhePromocao() {
               "Resgatando..."
             ) : promocaoEsgotada() ? (
               "Promoção esgotada"
+            ) : vencida ? (
+              "Promoção encerrada"
             ) : promocaoPausada() ? (
               "Promoção pausada"
             ) : (

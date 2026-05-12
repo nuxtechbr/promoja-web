@@ -22,7 +22,7 @@ export default function AdminLogin() {
       password: senha,
     });
 
-    if (error) {
+    if (error || !data?.user) {
       setLoading(false);
       alert("E-mail ou senha inválidos.");
       return;
@@ -31,19 +31,19 @@ export default function AdminLogin() {
     const user = data.user;
 
     const { data: admin } = await supabase
-  .from("admin_users")
-  .select("*")
-  .or(`auth_id.eq.${user.id},email.eq.${user.email}`)
-  .maybeSingle();
-  
+      .from("admin_users")
+      .select("*")
+      .eq("auth_id", user.id)
+      .maybeSingle();
+
     if (admin) {
       setLoading(false);
       window.location.href = "/admin";
       return;
     }
 
-    const { data: restaurante } = await supabase
-      .from("restaurants")
+    const { data: roleData } = await supabase
+      .from("user_roles")
       .select("*")
       .eq("auth_id", user.id)
       .maybeSingle();
@@ -51,14 +51,21 @@ export default function AdminLogin() {
     await supabase.auth.signOut();
     setLoading(false);
 
-    if (restaurante) {
+    const tipo = String(roleData?.tipo || "").toLowerCase();
+
+    if (tipo === "parceiro") {
       alert("Este e-mail pertence a uma conta de parceiro. Use o login do parceiro.");
       window.location.href = "/parceiro/login";
       return;
     }
 
+    if (tipo === "cliente") {
+      alert("Este e-mail pertence a uma conta de cliente. Use o login do cliente.");
+      window.location.href = "/login";
+      return;
+    }
+
     alert("Acesso negado. Este usuário não é administrador.");
-    window.location.href = "/login";
   }
 
   return (

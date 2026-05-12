@@ -71,10 +71,16 @@ export default function Home() {
     return String(valor || "").toLowerCase();
   }
 
+  function restauranteAtivo(restaurante) {
+    return ["ativo", "ativa", "aprovado", "aprovada"].includes(
+      statusNormalizado(restaurante?.status)
+    );
+  }
+
   function promocaoAtiva(promo) {
-    return ["ativa", "ativo", "aprovada", "aprovado", "Ativa"].includes(
-      promo.status
-    ) || ["ativa", "ativo", "aprovada", "aprovado"].includes(statusNormalizado(promo.status));
+    return ["ativa", "ativo", "aprovada", "aprovado"].includes(
+      statusNormalizado(promo?.status)
+    );
   }
 
   function promocaoEsgotada(promo) {
@@ -373,7 +379,7 @@ export default function Home() {
         .eq("id", resgate.promotion_id)
         .single();
 
-      if (promocao) {
+      if (promocao && promocaoAtiva(promocao)) {
         const antigo = converterPreco(promocao.preco_antigo);
         const novo = converterPreco(promocao.preco_promocional);
 
@@ -400,9 +406,15 @@ export default function Home() {
       return;
     }
 
-    const { data: restaurantesData } = await supabase
+    const { data: restaurantesData, error: restaurantesError } = await supabase
       .from("restaurants")
-      .select("id,nome,cidade,bairro,latitude,longitude,status");
+      .select("id,nome,cidade,bairro,latitude,longitude,status")
+      .in("status", ["ativo", "ativa", "aprovado", "aprovada"]);
+
+    if (restaurantesError) {
+      console.log(restaurantesError);
+      return;
+    }
 
     const { data: horariosData } = await supabase
       .from("restaurant_hours")
@@ -412,6 +424,12 @@ export default function Home() {
 
     for (const promo of data || []) {
       if (promo.ocultar === true) continue;
+
+      const restaurante = (restaurantesData || []).find(
+        (item) => Number(item.id) === Number(promo.restaurant_id)
+      );
+
+      if (!restaurante || !restauranteAtivo(restaurante)) continue;
 
       const esgotada = promocaoEsgotada(promo);
       const vencida = promocaoVencida(promo);
@@ -441,10 +459,6 @@ export default function Home() {
         }
       }
 
-      const restaurante = (restaurantesData || []).find(
-        (item) => Number(item.id) === Number(promo.restaurant_id)
-      );
-
       const horariosRestaurante = (horariosData || []).filter(
         (item) => Number(item.restaurant_id) === Number(promo.restaurant_id)
       );
@@ -466,11 +480,11 @@ export default function Home() {
 
       promocoesTratadas.push({
         ...promo,
-        restaurante_nome: restaurante?.nome || "Restaurante",
-        restaurante_cidade: restaurante?.cidade || "",
-        restaurante_bairro: restaurante?.bairro || "",
-        restaurante_latitude: restaurante?.latitude || null,
-        restaurante_longitude: restaurante?.longitude || null,
+        restaurante_nome: restaurante.nome || "Restaurante",
+        restaurante_cidade: restaurante.cidade || "",
+        restaurante_bairro: restaurante.bairro || "",
+        restaurante_latitude: restaurante.latitude || null,
+        restaurante_longitude: restaurante.longitude || null,
         restaurante_aberto: aberto,
         distancia_km: distancia,
       });
@@ -478,7 +492,10 @@ export default function Home() {
 
     const ordenadas = promocoesTratadas.sort((a, b) => {
       if (a.distancia_km === null && b.distancia_km === null) {
-        return Number(b.quantidade_resgatada || 0) - Number(a.quantidade_resgatada || 0);
+        return (
+          Number(b.quantidade_resgatada || 0) -
+          Number(a.quantidade_resgatada || 0)
+        );
       }
 
       if (a.distancia_km === null) return 1;
@@ -495,29 +512,57 @@ export default function Home() {
       .from("restaurant_ranking")
       .select("*")
       .order("average_rating", { ascending: false })
-      .limit(5);
+      .limit(20);
 
     if (error) {
       console.log("Erro ao carregar ranking:", error);
       return;
     }
 
+    const idsRanking = (data || [])
+      .map((item) => getRestaurantId(item))
+      .filter(Boolean);
+
+    if (idsRanking.length === 0) {
+      setRankingRestaurantes([]);
+      return;
+    }
+
+    const { data: restaurantesAtivos, error: restaurantesError } = await supabase
+      .from("restaurants")
+      .select("id,status")
+      .in("id", idsRanking)
+      .in("status", ["ativo", "ativa", "aprovado", "aprovada"]);
+
+    if (restaurantesError) {
+      console.log(restaurantesError);
+      setRankingRestaurantes([]);
+      return;
+    }
+
+    const idsAtivos = new Set(
+      (restaurantesAtivos || []).map((restaurante) => Number(restaurante.id))
+    );
+
     const { data: horariosData } = await supabase
       .from("restaurant_hours")
       .select("*");
 
-    const rankingComStatus = (data || []).map((item) => {
-      const restaurantId = getRestaurantId(item);
+    const rankingComStatus = (data || [])
+      .filter((item) => idsAtivos.has(Number(getRestaurantId(item))))
+      .slice(0, 5)
+      .map((item) => {
+        const restaurantId = getRestaurantId(item);
 
-      const horariosRestaurante = (horariosData || []).filter(
-        (horario) => Number(horario.restaurant_id) === Number(restaurantId)
-      );
+        const horariosRestaurante = (horariosData || []).filter(
+          (horario) => Number(horario.restaurant_id) === Number(restaurantId)
+        );
 
-      return {
-        ...item,
-        aberto_agora: restauranteAbertoAgora(horariosRestaurante),
-      };
-    });
+        return {
+          ...item,
+          aberto_agora: restauranteAbertoAgora(horariosRestaurante),
+        };
+      });
 
     setRankingRestaurantes(rankingComStatus);
   }
@@ -754,7 +799,7 @@ export default function Home() {
                   {localizacaoAtiva
                     ? "Localização ativada"
                     : buscandoLocalizacao
-                   ? "Buscando sua localização..."
+                    ? "Buscando sua localização..."
                     : "Ative sua localização"}
                 </p>
 

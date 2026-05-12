@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, Flame, Ticket, Store, Clock3, Zap } from "lucide-react";
+import { ArrowLeft, Flame, Ticket, Store, Clock3 } from "lucide-react";
 import { supabase } from "../services/supabase";
 
 export default function RestaurantePublico() {
@@ -12,8 +12,19 @@ export default function RestaurantePublico() {
   const [abertoAgora, setAbertoAgora] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  function normalizarStatus(valor) {
+    return String(valor || "").toLowerCase();
+  }
+
+  function statusAtivo(valor) {
+    return ["ativo", "ativa", "aprovado", "aprovada"].includes(
+      normalizarStatus(valor)
+    );
+  }
+
   function horaParaMinutos(hora) {
     if (!hora) return null;
+
     const partes = String(hora).slice(0, 5).split(":");
     return Number(partes[0]) * 60 + Number(partes[1]);
   }
@@ -89,6 +100,7 @@ export default function RestaurantePublico() {
 
   function promocaoVencida(promo) {
     if (!promo.validade) return false;
+
     return new Date(promo.validade).getTime() <= Date.now();
   }
 
@@ -202,10 +214,11 @@ export default function RestaurantePublico() {
       .from("restaurants")
       .select("*")
       .eq("id", Number(id))
-      .single();
+      .maybeSingle();
 
-    if (restauranteError || !restauranteData) {
+    if (restauranteError || !restauranteData || !statusAtivo(restauranteData.status)) {
       setRestaurante(null);
+      setPromocoes([]);
       setLoading(false);
       return;
     }
@@ -222,16 +235,25 @@ export default function RestaurantePublico() {
     setHorarios(listaHorarios);
     setAbertoAgora(restauranteAbertoAgora(listaHorarios));
 
-    const { data: promocoesData } = await supabase
+    const { data: promocoesData, error: promocoesError } = await supabase
       .from("promotions")
       .select("*")
       .eq("restaurant_id", Number(id))
-      .eq("status", "Ativa")
+      .in("status", ["ativa", "Ativa", "ativo", "aprovada", "aprovado"])
       .order("id", { ascending: false });
 
+    if (promocoesError) {
+      console.log(promocoesError);
+      setPromocoes([]);
+      setLoading(false);
+      return;
+    }
+
     const promocoesValidas = (promocoesData || []).filter((promo) => {
+      if (!statusAtivo(promo.status)) return false;
       if (promo.ocultar === true) return false;
       if (promocaoVencida(promo)) return false;
+
       return true;
     });
 
@@ -262,7 +284,7 @@ export default function RestaurantePublico() {
           </h1>
 
           <p className="text-sm text-zinc-500 mt-2">
-            Esse restaurante não foi encontrado.
+            Esse restaurante não está disponível no PromoJá.
           </p>
 
           <Link
