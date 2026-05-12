@@ -1,10 +1,7 @@
 import { Bell, Zap } from "lucide-react";
-import { messaging, getToken } from "../services/firebase";
 import { supabase } from "../services/supabase";
 
 export default function BotaoNotificacao() {
-  const vapidKey = "BEes-_TRv054uqDVU_s5rL5yURfvzc6MFbDCe6cHmkT58QgpJQNyYBknxzxJOB2sim8Ld2VNYzJuOk5iGLaM2FU";
-
   async function ativarNotificacoes() {
     try {
       const {
@@ -24,25 +21,18 @@ export default function BotaoNotificacao() {
         return;
       }
 
-      const token = await getToken(messaging, {
-        vapidKey,
-      });
-
-      if (!token) {
-        alert("Não foi possível ativar as notificações.");
-        return;
-      }
-
       const { error } = await supabase.from("notification_tokens").upsert(
         [
           {
             auth_user_id: user.id,
-            token,
-            created_at: new Date(),
+            token: `browser-${user.id}`,
+            tipo: "browser_permission",
+            ativo: true,
+            created_at: new Date().toISOString(),
           },
         ],
         {
-          onConflict: "token",
+          onConflict: "auth_user_id",
         }
       );
 
@@ -52,7 +42,7 @@ export default function BotaoNotificacao() {
         return;
       }
 
-      alert("Notificações ativadas! Agora você será avisado sobre novas ofertas.");
+      alert("Notificações ativadas! Agora você poderá receber avisos sobre novas ofertas.");
     } catch (error) {
       console.log(error);
       alert("Erro ao ativar notificações.");

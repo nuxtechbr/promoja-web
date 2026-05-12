@@ -49,8 +49,20 @@ export default function EditarPromocao() {
   });
 
   useEffect(() => {
-    carregarPromocao();
-  }, []);
+  let mounted = true;
+
+  async function init() {
+    if (!mounted) return;
+
+    await carregarPromocao();
+  }
+
+  init();
+
+  return () => {
+    mounted = false;
+  };
+}, []);
 
   async function buscarRestaurante(user) {
     const emailUsuario = String(user?.email || "")
@@ -141,7 +153,9 @@ export default function EditarPromocao() {
   }
 
   async function salvarEdicao(e) {
-    e.preventDefault();
+  if (salvando) return;
+
+  e.preventDefault();
 
     if (!promocao || !restaurante) return;
 
@@ -197,8 +211,10 @@ export default function EditarPromocao() {
       return;
     }
 
-    alert("Promoção atualizada com sucesso.");
-    navigate("/parceiro/painel");
+   setSalvando(false);
+
+alert("Promoção atualizada com sucesso.");
+navigate("/parceiro/painel");
   }
 
   if (loading) {

@@ -1,23 +1,28 @@
 export function calcularTempoRestante(validade) {
-  const agora = new Date();
-  const fim = new Date(validade);
-  const diferenca = fim - agora;
+  if (!validade) {
+    return 'Sem validade'
+  }
+
+  const agora = new Date()
+  const fim = new Date(validade)
+
+  if (Number.isNaN(fim.getTime())) {
+    return 'Data inválida'
+  }
+
+  const diferenca = fim.getTime() - agora.getTime()
 
   if (diferenca <= 0) {
-    return "Expirada";
+    return 'Expirada'
   }
 
-  const horas = Math.floor(
-    diferenca / (1000 * 60 * 60)
-  );
+  const minutosTotais = Math.floor(diferenca / (1000 * 60))
+  const horas = Math.floor(minutosTotais / 60)
+  const minutos = minutosTotais % 60
 
-  const minutos = Math.floor(
-    (diferenca / (1000 * 60)) % 60
-  );
-
-  if (horas > 0) {
-    return `${horas}h ${minutos}min`;
+  if (horas <= 0) {
+    return `${minutos}min`
   }
 
-  return `${minutos}min`;
+  return `${horas}h ${minutos}min`
 }

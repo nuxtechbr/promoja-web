@@ -167,9 +167,21 @@ export default function CuponsRestaurante() {
     window.location.href = "/parceiro/login";
   }
 
-  useEffect(() => {
-    carregarCupons();
-  }, []);
+ useEffect(() => {
+  let mounted = true;
+
+  async function init() {
+    if (!mounted) return;
+
+    await carregarCupons();
+  }
+
+  init();
+
+  return () => {
+    mounted = false;
+  };
+}, []);
 
   function statusBadge(status) {
     const s = String(status || "").toLowerCase();

@@ -11,6 +11,7 @@ import {
 import { Link } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
 import { supabase } from "../services/supabase";
+import { dispararWebhook } from "../services/webhook";
 
 const WEBHOOK_ADMIN =
   "https://nuxtechbr.app.n8n.cloud/webhook/fce175b7-c032-41b2-b49c-92f03735e095";
@@ -81,25 +82,10 @@ export default function NovaPromocao() {
     return null;
   }
 
-  async function avisarAdminTelegram(payload) {
-    try {
-      const formData = new URLSearchParams();
-
-      Object.entries(payload).forEach(([chave, valor]) => {
-        formData.append(chave, String(valor ?? ""));
-      });
-
-      await fetch(WEBHOOK_ADMIN, {
-        method: "POST",
-        body: formData,
-      });
-    } catch (error) {
-      console.log("Erro webhook Telegram:", error);
-    }
-  }
-
   async function criarPromocao(event) {
-    event.preventDefault();
+  if (carregando) return;
+
+  event.preventDefault();
 
     if (imagens.length === 0) {
       alert("Adicione pelo menos 1 foto da promoção.");
@@ -203,7 +189,7 @@ export default function NovaPromocao() {
         throw error;
       }
 
-      await avisarAdminTelegram({
+     await dispararWebhook(WEBHOOK_ADMIN, {
         tipo: "Nova promoção para análise",
         restaurante: restaurante.nome,
         responsavel: restaurante.responsavel || "Não informado",

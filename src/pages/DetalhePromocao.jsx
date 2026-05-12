@@ -128,7 +128,8 @@ export default function DetalhePromocao() {
     navigate(`/login?redirect=${encodeURIComponent(redirect)}`);
   }
 
-  async function resgatarCupom() {
+ async function resgatarCupom() {
+  if (resgatando) return;
     if (!usuario) {
       irParaLogin();
       return;

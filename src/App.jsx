@@ -1,35 +1,48 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
+import { Suspense } from "react";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
+// Públicas
 import Home from "./pages/Home";
-import HorariosRestaurante from "./pages/HorariosRestaurante";
 import Login from "./pages/Login";
 import CadastroUsuario from "./pages/CadastroUsuario";
+import RecuperarSenha from "./pages/RecuperarSenha";
+import NovaSenha from "./pages/NovaSenha";
 import Perfil from "./pages/Perfil";
 import Favoritos from "./pages/Favoritos";
 import MeusResgates from "./pages/MeusResgates";
+import Ranking from "./pages/Ranking";
 import DetalhePromocao from "./pages/DetalhePromocao";
+import RestaurantePublico from "./pages/RestaurantePublico";
+import Links from "./pages/Links";
+import Instalar from "./pages/Instalar";
+import PromoKit from "./pages/PromoKit";
+import LandingRestaurantes from "./pages/LandingRestaurantes";
+
+// Parceiro
 import CadastroRestaurante from "./pages/CadastroRestaurante";
-import PainelRestaurante from "./pages/PainelRestaurante";
-import NovaPromocao from "./pages/NovaPromocao";
-import AdminDashboard from "./pages/AdminDashboard";
-import CuponsRestaurante from "./pages/CuponsRestaurante";
 import CriarSenhaParceiro from "./pages/CriarSenhaParceiro";
 import LoginParceiro from "./pages/LoginParceiro";
-import LandingRestaurantes from "./pages/LandingRestaurantes";
+import PainelRestaurante from "./pages/PainelRestaurante";
+import NovaPromocao from "./pages/NovaPromocao";
 import EditarPromocao from "./pages/EditarPromocao";
-import Links from "./pages/Links";
-import RestaurantePublico from "./pages/RestaurantePublico";
-import PromoKit from "./pages/PromoKit";
-import Instalar from "./pages/Instalar";
-import Ranking from "./pages/Ranking";
-import AdminLogin from "./pages/AdminLogin";
-import RecuperarSenha from "./pages/RecuperarSenha";
-import NovaSenha from "./pages/NovaSenha";
+import CuponsRestaurante from "./pages/CuponsRestaurante";
+import HorariosRestaurante from "./pages/HorariosRestaurante";
 import FinanceiroResgates from "./pages/FinanceiroResgates";
+
+// Admin
+import AdminDashboard from "./pages/AdminDashboard";
+import AdminLogin from "./pages/AdminLogin";
+
+const Loading = () => (
+  <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+    <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <Suspense fallback={<Loading />}>
       <Routes>
         <Route path="/" element={<Home />} />
 
@@ -55,16 +68,72 @@ export default function App() {
         <Route path="/parceiro/cadastro" element={<CadastroRestaurante />} />
         <Route path="/parceiro/criar-senha" element={<CriarSenhaParceiro />} />
         <Route path="/parceiro/login" element={<LoginParceiro />} />
-        <Route path="/parceiro/painel" element={<PainelRestaurante />} />
-        <Route path="/parceiro/nova-promocao" element={<NovaPromocao />} />
-        <Route path="/parceiro/editar-promocao/:id" element={<EditarPromocao />} />
-        <Route path="/parceiro/cupons" element={<CuponsRestaurante />} />
-        <Route path="/parceiro/horarios" element={<HorariosRestaurante />} />
-        <Route path="/parceiro/financeiro-resgates" element={<FinanceiroResgates />} />
 
-        <Route path="/admin" element={<AdminDashboard />} />
+        <Route
+          path="/parceiro/painel"
+          element={
+            <ProtectedRoute allowedRoles={["parceiro"]} redirectTo="/parceiro/login">
+              <PainelRestaurante />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/parceiro/nova-promocao"
+          element={
+            <ProtectedRoute allowedRoles={["parceiro"]} redirectTo="/parceiro/login">
+              <NovaPromocao />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/parceiro/editar-promocao/:id"
+          element={
+            <ProtectedRoute allowedRoles={["parceiro"]} redirectTo="/parceiro/login">
+              <EditarPromocao />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/parceiro/cupons"
+          element={
+            <ProtectedRoute allowedRoles={["parceiro"]} redirectTo="/parceiro/login">
+              <CuponsRestaurante />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/parceiro/horarios"
+          element={
+            <ProtectedRoute allowedRoles={["parceiro"]} redirectTo="/parceiro/login">
+              <HorariosRestaurante />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/parceiro/financeiro-resgates"
+          element={
+            <ProtectedRoute allowedRoles={["parceiro"]} redirectTo="/parceiro/login">
+              <FinanceiroResgates />
+            </ProtectedRoute>
+          }
+        />
+
         <Route path="/admin-login" element={<AdminLogin />} />
+
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute allowedRoles={["admin"]} redirectTo="/admin-login">
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
-    </BrowserRouter>
+    </Suspense>
   );
 }
