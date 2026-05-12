@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -6,14 +6,15 @@ import {
   Eye,
   EyeOff,
   Lock,
-  Clock,
   CheckCircle,
   AlertCircle,
+  MapPin,
+  LocateFixed,
 } from "lucide-react";
 import { supabase } from "../services/supabase";
 
-const WEBHOOK_CADASTRO_PARCEIRO =
-  "https://nuxtechbr.app.n8n.cloud/webhook/promoja-parceiro-cadastro";
+const WEBHOOK_ADMIN =
+  "https://nuxtechbr.app.n8n.cloud/webhook/fce175b7-c032-41b2-b49c-92f03735e095";
 
 export default function CadastroRestaurante() {
   const [nome, setNome] = useState("");
@@ -26,6 +27,11 @@ export default function CadastroRestaurante() {
   const [bairro, setBairro] = useState("");
   const [instagram, setInstagram] = useState("");
 
+  const [latitude, setLatitude] = useState(null);
+  const [longitude, setLongitude] = useState(null);
+  const [localizacaoOk, setLocalizacaoOk] = useState(false);
+  const [buscandoLocalizacao, setBuscandoLocalizacao] = useState(false);
+
   const [senha, setSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
   const [mostrarSenha, setMostrarSenha] = useState(false);
@@ -35,18 +41,81 @@ export default function CadastroRestaurante() {
   const [cadastroEnviado, setCadastroEnviado] = useState(false);
   const [erroTela, setErroTela] = useState("");
 
+  useEffect(() => {
+    pegarLocalizacao();
+  }, []);
+
   function mostrarErro(mensagem) {
     setErroTela(mensagem);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  function pegarLocalizacao() {
+    setErroTela("");
+    setBuscandoLocalizacao(true);
+
+    if (!navigator.geolocation) {
+      setBuscandoLocalizacao(false);
+      mostrarErro("Seu dispositivo não suporta localização.");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLatitude(position.coords.latitude);
+        setLongitude(position.coords.longitude);
+        setLocalizacaoOk(true);
+        setBuscandoLocalizacao(false);
+      },
+      (error) => {
+        console.log(error);
+        setLatitude(null);
+        setLongitude(null);
+        setLocalizacaoOk(false);
+        setBuscandoLocalizacao(false);
+        mostrarErro(
+          "Você precisa permitir a localização para cadastrar seu restaurante."
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  }
+
+  async function avisarAdminTelegram(payload) {
+    try {
+      const formData = new URLSearchParams();
+
+      Object.entries(payload).forEach(([chave, valor]) => {
+        formData.append(chave, String(valor ?? ""));
+      });
+
+      await fetch(WEBHOOK_ADMIN, {
+        method: "POST",
+        body: formData,
+      });
+    } catch (webhookError) {
+      console.log("Erro ao enviar webhook restaurante:", webhookError);
+    }
+  }
+
   async function cadastrarRestaurante(event) {
     event.preventDefault();
+
     setCarregando(true);
     setErroTela("");
 
     const emailFormatado = email.toLowerCase().trim();
     const telefoneLimpo = whatsapp.replace(/\D/g, "");
+
+    if (!localizacaoOk || !latitude || !longitude) {
+      mostrarErro("Você precisa permitir a localização para continuar.");
+      setCarregando(false);
+      return;
+    }
 
     if (senha.length < 6) {
       mostrarErro("A senha precisa ter pelo menos 6 caracteres.");
@@ -130,6 +199,8 @@ export default function CadastroRestaurante() {
         instagram: instagram.trim(),
         auth_id: authId,
         status: "pendente",
+        latitude,
+        longitude,
         created_at: new Date(),
       },
     ]);
@@ -161,35 +232,22 @@ export default function CadastroRestaurante() {
       return;
     }
 
-    try {
-      const webhookResponse = await fetch(WEBHOOK_CADASTRO_PARCEIRO, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          nome: nome.trim(),
-          responsavel: responsavel.trim(),
-          email: emailFormatado,
-          whatsapp: telefoneLimpo,
-          restaurante: nome.trim(),
-          categoria,
-          endereco: endereco.trim(),
-          cidade: cidade.trim(),
-          bairro: bairro.trim(),
-          instagram: instagram.trim(),
-          status: "pendente",
-          origem: "cadastro_real_parceiro",
-          data: new Date().toISOString(),
-        }),
-      });
-
-      if (!webhookResponse.ok) {
-        console.log("Webhook N8N respondeu erro:", webhookResponse.status);
-      }
-    } catch (webhookError) {
-      console.log("Erro ao enviar webhook n8n:", webhookError);
-    }
+    await avisarAdminTelegram({
+      tipo: "Novo restaurante cadastrado",
+      restaurante: nome.trim(),
+      responsavel: responsavel.trim(),
+      whatsapp: telefoneLimpo,
+      email: emailFormatado,
+      categoria,
+      endereco: endereco.trim(),
+      cidade: cidade.trim(),
+      bairro: bairro.trim(),
+      instagram: instagram.trim(),
+      latitude,
+      longitude,
+      status: "pendente",
+      mensagem: "Novo restaurante aguardando aprovação no painel admin.",
+    });
 
     setCarregando(false);
     setCadastroEnviado(true);
@@ -237,11 +295,11 @@ export default function CadastroRestaurante() {
           </div>
 
           <Link
-  to="/login"
-  className="mt-5 w-full bg-[#FF5A1F] text-white py-4 rounded-2xl font-black flex items-center justify-center shadow-lg"
->
-  Acessar painel do parceiro
-</Link>
+            to="/parceiro/login"
+            className="mt-5 w-full bg-[#FF5A1F] text-white py-4 rounded-2xl font-black flex items-center justify-center shadow-lg"
+          >
+            Ir para login do parceiro
+          </Link>
         </section>
       </main>
     );
@@ -259,6 +317,7 @@ export default function CadastroRestaurante() {
       {erroTela && (
         <div className="mt-5 rounded-3xl border border-red-200 bg-red-50 p-4 text-red-700 shadow-sm flex gap-3">
           <AlertCircle className="shrink-0 mt-0.5" size={22} />
+
           <div>
             <p className="font-black">Não foi possível continuar</p>
             <p className="text-sm mt-1">{erroTela}</p>
@@ -283,6 +342,46 @@ export default function CadastroRestaurante() {
           Crie seu cadastro. Após aprovação, você poderá acessar o painel do
           parceiro.
         </p>
+      </section>
+
+      <section className="bg-white rounded-[28px] p-5 shadow-sm mt-5">
+        <div className="flex items-center gap-3">
+          <div className="bg-[#FFF3EE] w-14 h-14 rounded-2xl flex items-center justify-center">
+            <MapPin className="text-[#FF5A1F]" />
+          </div>
+
+          <div>
+            <p className="font-black">Localização do restaurante</p>
+
+            <p className="text-sm text-zinc-500">
+              Necessária para mostrar promoções próximas.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={pegarLocalizacao}
+          className={`mt-5 w-full py-4 rounded-2xl font-black flex items-center justify-center gap-2 ${
+            localizacaoOk
+              ? "bg-green-100 text-green-700"
+              : "bg-[#FF5A1F] text-white"
+          }`}
+        >
+          <LocateFixed size={22} />
+
+          {buscandoLocalizacao
+           ? "Buscando sua localização..."
+            : localizacaoOk
+            ? "Localização ativada"
+            : "Ativar localização"}
+        </button>
+
+        {localizacaoOk && (
+          <p className="text-xs text-green-700 font-bold mt-3">
+            Localização capturada com segurança.
+          </p>
+        )}
       </section>
 
       <form onSubmit={cadastrarRestaurante} className="mt-6 space-y-4">
@@ -377,6 +476,7 @@ export default function CadastroRestaurante() {
         <section className="bg-white rounded-[28px] p-5 shadow-sm">
           <div className="flex items-center gap-2 mb-4">
             <Lock className="text-[#FF5A1F]" />
+
             <h2 className="font-black text-lg">Crie sua senha de acesso</h2>
           </div>
 
@@ -425,7 +525,7 @@ export default function CadastroRestaurante() {
 
         <button
           type="submit"
-          disabled={carregando}
+          disabled={carregando || buscandoLocalizacao}
           className="w-full bg-[#FF5A1F] text-white py-4 rounded-2xl font-black text-lg shadow-lg disabled:opacity-70"
         >
           {carregando

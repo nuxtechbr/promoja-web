@@ -4,10 +4,16 @@ import {
   ImagePlus,
   X,
   CalendarClock,
+  Zap,
+  Flame,
+  Clock3,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useDropzone } from "react-dropzone";
 import { supabase } from "../services/supabase";
+
+const WEBHOOK_ADMIN =
+  "https://nuxtechbr.app.n8n.cloud/webhook/fce175b7-c032-41b2-b49c-92f03735e095";
 
 export default function NovaPromocao() {
   const [titulo, setTitulo] = useState("");
@@ -16,13 +22,13 @@ export default function NovaPromocao() {
   const [precoPromocional, setPrecoPromocional] = useState("");
   const [categoria, setCategoria] = useState("");
   const [validade, setValidade] = useState("");
+  const [tipoPromocao, setTipoPromocao] = useState("normal");
+  const [horarioDrop, setHorarioDrop] = useState("");
   const [imagens, setImagens] = useState([]);
   const [carregando, setCarregando] = useState(false);
 
   const { getRootProps, getInputProps } = useDropzone({
-    accept: {
-      "image/*": [],
-    },
+    accept: { "image/*": [] },
     maxFiles: 2,
     onDrop: (arquivosAceitos) => {
       const novasImagens = arquivosAceitos.map((arquivo) => ({
@@ -46,174 +52,188 @@ export default function NovaPromocao() {
       .from("promotions")
       .upload(caminho, imagem.arquivo);
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
 
-    const { data } = supabase.storage
-      .from("promotions")
-      .getPublicUrl(caminho);
+    const { data } = supabase.storage.from("promotions").getPublicUrl(caminho);
 
     return data.publicUrl;
   }
 
-  async function criarPromocao(event) {
-  event.preventDefault();
+  async function buscarRestaurante(user) {
+    const emailUsuario = String(user?.email || "").trim().toLowerCase();
 
-  if (imagens.length === 0) {
-    alert("Adicione pelo menos 1 foto da promoção.");
-    return;
-  }
-
-  setCarregando(true);
-
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      alert("Faça login novamente.");
-      return;
-    }
-
-    const { data: restaurante } = await supabase
+    const { data: porAuthId } = await supabase
       .from("restaurants")
       .select("*")
       .eq("auth_id", user.id)
       .maybeSingle();
 
-    if (!restaurante) {
-      alert("Restaurante não encontrado.");
-      return;
-    }
+    if (porAuthId) return porAuthId;
 
-    const inicioDoDia = new Date();
-    inicioDoDia.setHours(0, 0, 0, 0);
-
-    const fimDoDia = new Date();
-    fimDoDia.setHours(23, 59, 59, 999);
-
-    const {
-      data: promocoesHoje,
-      error: erroPromocoesHoje,
-    } = await supabase
-      .from("promotions")
+    const { data: porEmail } = await supabase
+      .from("restaurants")
       .select("*")
-      .eq("restaurant_id", restaurante.id)
-      .gte("created_at", inicioDoDia.toISOString())
-      .lte("created_at", fimDoDia.toISOString());
+      .ilike("email", emailUsuario)
+      .maybeSingle();
 
-    if (erroPromocoesHoje) {
-      throw erroPromocoesHoje;
+    if (porEmail) return porEmail;
+
+    return null;
+  }
+
+  async function avisarAdminTelegram(payload) {
+    try {
+      const formData = new URLSearchParams();
+
+      Object.entries(payload).forEach(([chave, valor]) => {
+        formData.append(chave, String(valor ?? ""));
+      });
+
+      await fetch(WEBHOOK_ADMIN, {
+        method: "POST",
+        body: formData,
+      });
+    } catch (error) {
+      console.log("Erro webhook Telegram:", error);
     }
+  }
 
-    if (promocoesHoje.length >= 2) {
-      alert(
-        "Este restaurante já criou 2 promoções hoje."
-      );
+  async function criarPromocao(event) {
+    event.preventDefault();
 
-      setCarregando(false);
-
+    if (imagens.length === 0) {
+      alert("Adicione pelo menos 1 foto da promoção.");
       return;
     }
 
-    const urlsDasImagens = [];
-
-    for (const imagem of imagens) {
-      const url =
-        await enviarImagemParaStorage(imagem);
-
-      urlsDasImagens.push(url);
+    if (tipoPromocao === "drop" && !horarioDrop) {
+      alert("Escolha o horário em que o drop começa.");
+      return;
     }
 
-    const { data: promocaoCriada, error } =
-      await supabase
+    setCarregando(true);
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        alert("Faça login novamente.");
+        setCarregando(false);
+        return;
+      }
+
+      const restaurante = await buscarRestaurante(user);
+
+      if (!restaurante) {
+        alert(
+          "Não encontramos sua loja vinculada a este login. Confira se o e-mail do cadastro é o mesmo usado no painel parceiro."
+        );
+        setCarregando(false);
+        return;
+      }
+
+      const inicioDoDia = new Date();
+      inicioDoDia.setHours(0, 0, 0, 0);
+
+      const fimDoDia = new Date();
+      fimDoDia.setHours(23, 59, 59, 999);
+
+      const { data: promocoesHoje, error: erroPromocoesHoje } =
+        await supabase
+          .from("promotions")
+          .select("*")
+          .eq("restaurant_id", restaurante.id)
+          .in("status", ["Ativa", "ativa", "aprovada", "Aprovada"])
+          .gte("created_at", inicioDoDia.toISOString())
+          .lte("created_at", fimDoDia.toISOString());
+
+      if (erroPromocoesHoje) {
+        throw erroPromocoesHoje;
+      }
+
+      if ((promocoesHoje || []).length >= 2) {
+        alert(
+          "Sua loja já possui 2 promoções ativas hoje. Para publicar uma nova, aguarde amanhã ou encerre uma promoção atual."
+        );
+
+        setCarregando(false);
+        return;
+      }
+
+      const urlsDasImagens = [];
+
+      for (const imagem of imagens) {
+        const url = await enviarImagemParaStorage(imagem);
+        urlsDasImagens.push(url);
+      }
+
+      const dropAtivoAgora =
+        tipoPromocao === "drop" &&
+        new Date(horarioDrop).getTime() <= Date.now();
+
+      const { data: promocaoCriada, error } = await supabase
         .from("promotions")
         .insert([
           {
             titulo,
             descricao,
             preco_antigo: precoAntigo,
-            preco_promocional:
-              precoPromocional,
+            preco_promocional: precoPromocional,
             imagem_url: urlsDasImagens[0],
             categoria,
             validade,
             restaurant_id: restaurante.id,
-            quantidade_total: 30,
+            quantidade_total: tipoPromocao === "drop" ? 15 : 30,
             quantidade_resgatada: 0,
             status: "pendente",
+            tipo_promocao: tipoPromocao,
+            horario_drop: tipoPromocao === "drop" ? horarioDrop : null,
+            drop_ativo: dropAtivoAgora,
+            visualizacoes: 0,
+            compartilhamentos: 0,
             created_at: new Date(),
           },
         ])
         .select()
         .single();
 
-    if (error) {
-      throw error;
+      if (error) {
+        throw error;
+      }
+
+      await avisarAdminTelegram({
+        tipo: "Nova promoção para análise",
+        restaurante: restaurante.nome,
+        responsavel: restaurante.responsavel || "Não informado",
+        whatsapp: String(restaurante.whatsapp_comercial || "").replace(
+          /\D/g,
+          ""
+        ),
+        mensagem: `A loja enviou uma nova promoção para análise: ${titulo}`,
+        promocao_id: promocaoCriada.id,
+        titulo,
+        descricao,
+        preco_antigo: precoAntigo,
+        preco_promocional: precoPromocional,
+        categoria,
+        validade,
+        tipo_promocao: tipoPromocao,
+        horario_drop: tipoPromocao === "drop" ? horarioDrop : "",
+        imagem: urlsDasImagens[0],
+        status: "pendente",
+      });
+
+      alert("Promoção enviada para análise!");
+      window.location.href = "/parceiro/painel";
+    } catch (error) {
+      console.log(error);
+      alert(error.message || "Erro ao criar promoção.");
+      setCarregando(false);
     }
-
-    try {
-      await fetch(
-        "https://nuxtechbr.app.n8n.cloud/webhook/promoja-promocao-analise",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            restaurante:
-              restaurante.nome,
-            responsavel:
-              restaurante.responsavel,
-            whatsapp: String(
-              restaurante.whatsapp_comercial ||
-                ""
-            ).replace(/\D/g, ""),
-            email: restaurante.email,
-
-            promocao_id:
-              promocaoCriada.id,
-
-            titulo,
-            descricao,
-            preco_antigo:
-              precoAntigo,
-            preco_promocional:
-              precoPromocional,
-            categoria,
-            validade,
-
-            imagem:
-              urlsDasImagens[0],
-
-            status: "pendente",
-          }),
-        }
-      );
-    } catch (webhookError) {
-      console.log(
-        "Erro webhook promoção:",
-        webhookError
-      );
-    }
-
-    alert(
-      "Promoção enviada para análise!"
-    );
-
-    window.location.href =
-      "/parceiro/painel";
-  } catch (error) {
-    console.log(error);
-
-    alert(error.message);
   }
 
-  setCarregando(false);
-}
   return (
     <main className="min-h-screen bg-[#F7F7F7] px-5 py-6 pb-10">
       <Link
@@ -237,12 +257,60 @@ export default function NovaPromocao() {
         <h1 className="text-3xl font-black">Nova promoção</h1>
 
         <p className="text-sm text-zinc-300 mt-2">
-          Cada restaurante pode criar até 2 promoções por dia. Todas passam por
-          aprovação antes de aparecer no app.
+          Cada restaurante pode criar até 2 promoções por dia.
         </p>
       </section>
 
       <form onSubmit={criarPromocao} className="mt-6 space-y-4">
+        <div className="bg-white rounded-3xl p-4 shadow-sm">
+          <label className="font-black text-[#1C1C1C]">Tipo da promoção</label>
+
+          <p className="text-sm text-zinc-500 mt-1">
+            Drops aparecem com mais destaque e senso de urgência.
+          </p>
+
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            <button
+              type="button"
+              onClick={() => {
+                setTipoPromocao("normal");
+                setHorarioDrop("");
+              }}
+              className={`rounded-2xl p-4 border-2 transition-all text-left ${
+                tipoPromocao === "normal"
+                  ? "border-[#FF5A1F] bg-[#FFF3EE]"
+                  : "border-zinc-200 bg-white"
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Flame size={20} className="text-[#FF5A1F]" />
+                <span className="font-black">Normal</span>
+              </div>
+
+              <p className="text-xs text-zinc-500">Promoção comum da loja.</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTipoPromocao("drop")}
+              className={`rounded-2xl p-4 border-2 transition-all text-left ${
+                tipoPromocao === "drop"
+                  ? "border-[#FF5A1F] bg-[#FFF3EE]"
+                  : "border-zinc-200 bg-white"
+              }`}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Zap size={20} className="text-[#FF5A1F]" />
+                <span className="font-black">Drop</span>
+              </div>
+
+              <p className="text-xs text-zinc-500">
+                Oferta rápida com horário marcado.
+              </p>
+            </button>
+          </div>
+        </div>
+
         <input
           type="text"
           required
@@ -334,7 +402,7 @@ export default function NovaPromocao() {
           </label>
 
           <p className="text-sm text-zinc-500 mt-1">
-            Escolha o dia e horário em que a promoção termina.
+            Depois dessa data, a promoção encerra automaticamente.
           </p>
 
           <input
@@ -346,12 +414,29 @@ export default function NovaPromocao() {
           />
         </div>
 
+        {tipoPromocao === "drop" && (
+          <div className="bg-white rounded-3xl p-4 shadow-sm border-2 border-[#FF5A1F]">
+            <label className="font-black flex items-center gap-2">
+              <Clock3 className="text-[#FF5A1F]" />
+              Horário do Drop
+            </label>
+
+            <p className="text-sm text-zinc-500 mt-1">
+              O drop só aparece para os clientes a partir desse horário.
+            </p>
+
+            <input
+              type="datetime-local"
+              required={tipoPromocao === "drop"}
+              value={horarioDrop}
+              onChange={(e) => setHorarioDrop(e.target.value)}
+              className="mt-4 w-full bg-[#F7F7F7] rounded-2xl px-4 py-4 outline-none"
+            />
+          </div>
+        )}
+
         <div className="bg-white rounded-3xl p-4 shadow-sm">
           <label className="font-black">Fotos do produto</label>
-
-          <p className="text-sm text-zinc-500 mt-1">
-            Adicione até 2 fotos. A primeira será a imagem principal.
-          </p>
 
           <div
             {...getRootProps()}
@@ -364,7 +449,6 @@ export default function NovaPromocao() {
             </div>
 
             <p className="font-black">Clique ou arraste as fotos aqui</p>
-
             <p className="text-sm text-zinc-500 mt-1">Máximo 2 imagens</p>
           </div>
 
@@ -388,10 +472,6 @@ export default function NovaPromocao() {
                   >
                     <X size={16} />
                   </button>
-
-                  <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs font-black px-3 py-1 rounded-full">
-                    Foto {index + 1}
-                  </div>
                 </div>
               ))}
             </div>

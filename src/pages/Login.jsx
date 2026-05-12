@@ -1,10 +1,13 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Eye, EyeOff, LogIn } from "lucide-react";
 import { supabase } from "../services/supabase";
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const redirect = searchParams.get("redirect");
 
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -51,13 +54,19 @@ export default function Login() {
     }
 
     setCarregando(false);
+
+    if (redirect) {
+      navigate(redirect);
+      return;
+    }
+
     navigate("/");
   }
 
   return (
     <main className="min-h-screen bg-[#F7F7F7] px-5 py-6">
       <Link
-        to="/"
+        to={redirect || "/"}
         className="bg-white w-11 h-11 rounded-full flex items-center justify-center shadow-sm"
       >
         <ArrowLeft size={22} />
@@ -72,7 +81,9 @@ export default function Login() {
           <h1 className="text-3xl font-black">Entrar</h1>
 
           <p className="text-zinc-300 mt-2">
-            Acesse sua conta e continue aproveitando promoções.
+            {redirect
+              ? "Entre para continuar e resgatar essa promoção."
+              : "Acesse sua conta e continue aproveitando promoções."}
           </p>
         </div>
 
@@ -122,7 +133,14 @@ export default function Login() {
 
           <p className="text-center text-sm text-zinc-500">
             Ainda não tem conta?{" "}
-            <Link to="/cadastro" className="font-black text-[#FF5A1F]">
+            <Link
+              to={
+                redirect
+                  ? `/cadastro?redirect=${encodeURIComponent(redirect)}`
+                  : "/cadastro"
+              }
+              className="font-black text-[#FF5A1F]"
+            >
               Criar conta
             </Link>
           </p>

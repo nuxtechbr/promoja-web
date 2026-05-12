@@ -15,74 +15,77 @@ export default function LoginParceiro() {
     event.preventDefault();
     setCarregando(true);
 
-    const emailFormatado = email.trim().toLowerCase();
+    try {
+      const emailFormatado = email.trim().toLowerCase();
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: emailFormatado,
-      password: senha,
-    });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: emailFormatado,
+        password: senha,
+      });
 
-    if (error) {
+      if (error || !data?.user) {
+        alert("E-mail ou senha inválidos.");
+        setCarregando(false);
+        return;
+      }
+
+      const authId = data.user.id;
+
+      const { data: role } = await supabase
+        .from("user_roles")
+        .select("*")
+        .eq("auth_id", authId)
+        .maybeSingle();
+
+      if (role?.tipo === "admin") {
+        await supabase.auth.signOut();
+        alert("Este e-mail pertence à administração. Use o login administrativo.");
+        navigate("/admin-login");
+        setCarregando(false);
+        return;
+      }
+
+      if (role?.tipo === "cliente") {
+        await supabase.auth.signOut();
+        alert("Este e-mail pertence a uma conta de cliente. Use o login do cliente.");
+        navigate("/login");
+        setCarregando(false);
+        return;
+      }
+
+      const { data: restaurante, error: restauranteError } = await supabase
+        .from("restaurants")
+        .select("*")
+        .eq("auth_id", authId)
+        .maybeSingle();
+
+      if (restauranteError || !restaurante) {
+        await supabase.auth.signOut();
+        alert("Este acesso é exclusivo para restaurantes parceiros.");
+        setCarregando(false);
+        return;
+      }
+
+      const statusRestaurante = String(restaurante.status || "").toLowerCase();
+
+      const statusPermitidos = ["ativo", "aprovado", "aprovada", "active"];
+
+      if (!statusPermitidos.includes(statusRestaurante)) {
+        await supabase.auth.signOut();
+        alert(
+          "Seu cadastro ainda está em análise. A equipe PromoJá responderá em até 24h."
+        );
+        setCarregando(false);
+        return;
+      }
+
       setCarregando(false);
-      alert("E-mail ou senha inválidos.");
-      return;
-    }
-
-    const authId = data.user.id;
-
-    const { data: role } = await supabase
-      .from("user_roles")
-      .select("*")
-      .eq("auth_id", authId)
-      .maybeSingle();
-
-    if (role?.tipo === "admin") {
-      await supabase.auth.signOut();
+      navigate("/parceiro/painel");
+    } catch (erro) {
+      console.log(erro);
+      alert("Erro ao entrar. Tente novamente.");
       setCarregando(false);
-      alert("Este e-mail pertence à administração. Use o login administrativo.");
-      navigate("/admin-login");
-      return;
     }
-
-    if (role?.tipo === "cliente") {
-      await supabase.auth.signOut();
-      setCarregando(false);
-      alert("Este e-mail pertence a uma conta de cliente. Use o login do cliente.");
-      navigate("/login");
-      return;
-    }
-
-    if (role?.tipo !== "parceiro") {
-      await supabase.auth.signOut();
-      setCarregando(false);
-      alert("Este acesso é exclusivo para restaurantes parceiros.");
-      return;
-    }
-
-    const { data: restaurante, error: restauranteError } = await supabase
-      .from("restaurants")
-      .select("*")
-      .eq("auth_id", authId)
-      .maybeSingle();
-
-    if (restauranteError || !restaurante) {
-      await supabase.auth.signOut();
-      setCarregando(false);
-      alert("Este login não pertence a um restaurante parceiro.");
-      return;
-    }
-
-    if (restaurante.status !== "ativo") {
-      await supabase.auth.signOut();
-      setCarregando(false);
-      alert(
-        "Seu cadastro ainda está em análise. A equipe PromoJá responderá em até 24h."
-      );
-      return;
-    }
-
-    setCarregando(false);
-    navigate("/parceiro/painel");
   }
 
   return (
@@ -143,11 +146,12 @@ export default function LoginParceiro() {
           </div>
 
           <Link
-  to="/recuperar-senha"
-  className="block text-right text-sm font-bold text-[#FF5A1F]"
->
-  Esqueci minha senha
-</Link>
+            to="/recuperar-senha"
+            className="block text-right text-sm font-bold text-[#FF5A1F]"
+          >
+            Esqueci minha senha
+          </Link>
+
           <button
             type="submit"
             disabled={carregando}

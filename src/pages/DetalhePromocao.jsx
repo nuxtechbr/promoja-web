@@ -1,357 +1,425 @@
 import { useEffect, useState } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   ArrowLeft,
-  Clock,
-  MapPin,
   Ticket,
-  Flame,
   Store,
-  MessageCircle,
+  Lock,
+  CheckCircle,
+  Clock3,
+  Share2,
+  Flame,
 } from "lucide-react";
-import { Link, useParams } from "react-router-dom";
 import { supabase } from "../services/supabase";
 
 export default function DetalhePromocao() {
   const { id } = useParams();
+  const navigate = useNavigate();
 
+  const [loading, setLoading] = useState(true);
+  const [usuario, setUsuario] = useState(null);
   const [promocao, setPromocao] = useState(null);
   const [restaurante, setRestaurante] = useState(null);
-  const [carregando, setCarregando] = useState(true);
+  const [resgatando, setResgatando] = useState(false);
+  const [cupomGerado, setCupomGerado] = useState(null);
 
-  function converterPreco(valor) {
-    if (!valor) return 0;
+  useEffect(() => {
+    carregarDados();
+  }, [id]);
 
-    const texto = String(valor).replace("R$", "").trim();
+  async function carregarDados() {
+    setLoading(true);
 
-    if (texto.includes(",")) {
-      return Number(texto.replace(/\./g, "").replace(",", "."));
-    }
-
-    return Number(texto);
-  }
-
-  function calcularDesconto() {
-    const antigo = converterPreco(promocao?.preco_antigo);
-    const novo = converterPreco(promocao?.preco_promocional);
-
-    if (!antigo || !novo || antigo <= novo) return 0;
-
-    return Math.round(((antigo - novo) / antigo) * 100);
-  }
-
-  function calcularEconomia() {
-    const antigo = converterPreco(promocao?.preco_antigo);
-    const novo = converterPreco(promocao?.preco_promocional);
-
-    if (!antigo || !novo || antigo <= novo) return 0;
-
-    return antigo - novo;
-  }
-
-  function tempoRestante(validade) {
-    const agora = new Date();
-    const fim = new Date(validade);
-    const diferenca = fim - agora;
-
-    if (diferenca <= 0) return "Expirada";
-
-    const horas = Math.floor(diferenca / (1000 * 60 * 60));
-    const minutos = Math.floor((diferenca / (1000 * 60)) % 60);
-
-    if (horas > 0) return `${horas}h ${minutos}min`;
-
-    return `${minutos}min`;
-  }
-
-  function cupomEsgotado() {
-    const total = Number(promocao?.quantidade_total || 0);
-    const resgatada = Number(promocao?.quantidade_resgatada || 0);
-
-    return total > 0 && resgatada >= total;
-  }
-
-  function cuponsRestantes() {
-    const total = Number(promocao?.quantidade_total || 0);
-    const resgatada = Number(promocao?.quantidade_resgatada || 0);
-
-    if (total === 0) return null;
-
-    return Math.max(total - resgatada, 0);
-  }
-
-  function limparWhatsapp(numero) {
-    if (!numero) return "";
-
-    return String(numero).replace(/\D/g, "");
-  }
-
-  async function carregarPromocao() {
-    const { data, error } = await supabase
-      .from("promotions")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (error) {
-      console.log(error);
-      alert("Erro ao carregar promoção.");
-      setCarregando(false);
-      return;
-    }
-
-    setPromocao(data);
-
-    const { data: restauranteData, error: restauranteError } = await supabase
-      .from("restaurants")
-      .select("*")
-      .eq("id", data.restaurant_id)
-      .single();
-
-    if (restauranteError) {
-      console.log(restauranteError);
-      setRestaurante(null);
-      setCarregando(false);
-      return;
-    }
-
-    setRestaurante(restauranteData);
-    setCarregando(false);
-  }
-
-  async function resgatarPromocao() {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      alert("Você precisa estar logado para resgatar.");
-      window.location.href = "/login";
-      return;
-    }
+    setUsuario(user || null);
 
-    const whatsappLimpo = limparWhatsapp(restaurante?.whatsapp_comercial);
-
-    if (!whatsappLimpo) {
-      alert("WhatsApp do restaurante não encontrado. Tente outra promoção.");
-      return;
-    }
-
-    const whatsappComPais = whatsappLimpo.startsWith("55")
-      ? whatsappLimpo
-      : `55${whatsappLimpo}`;
-
-    const total = Number(promocao.quantidade_total || 0);
-    const resgatada = Number(promocao.quantidade_resgatada || 0);
-
-    if (total > 0 && resgatada >= total) {
-      alert("Essa promoção já foi esgotada.");
-      return;
-    }
-
-    const inicioDoDia = new Date();
-    inicioDoDia.setHours(0, 0, 0, 0);
-
-    const fimDoDia = new Date();
-    fimDoDia.setHours(23, 59, 59, 999);
-
-    const { data: resgatesHoje, error: erroResgatesHoje } = await supabase
-      .from("redemptions")
+    const { data: promoData, error } = await supabase
+      .from("promotions")
       .select("*")
-      .eq("auth_user_id", user.id)
-      .gte("created_at", inicioDoDia.toISOString())
-      .lte("created_at", fimDoDia.toISOString());
+      .eq("id", id)
+      .maybeSingle();
 
-    if (erroResgatesHoje) {
-      console.log(erroResgatesHoje);
-      alert("Erro ao verificar seus resgates.");
+    if (error || !promoData) {
+      alert("Promoção não encontrada.");
+      navigate("/");
       return;
     }
 
-    if (resgatesHoje.length >= 1) {
-      alert("Você já resgatou uma promoção hoje. Volte amanhã para pegar outra.");
+    setPromocao(promoData);
+
+    if (promoData.restaurant_id) {
+      const { data: restauranteData } = await supabase
+        .from("restaurants")
+        .select("*")
+        .eq("id", promoData.restaurant_id)
+        .maybeSingle();
+
+      setRestaurante(restauranteData || null);
+    }
+
+    if (user) {
+      const { data: resgateExistente } = await supabase
+        .from("redemptions")
+        .select("*")
+        .eq("promotion_id", promoData.id)
+        .eq("auth_user_id", user.id)
+        .maybeSingle();
+
+      if (resgateExistente) {
+        setCupomGerado(resgateExistente);
+      }
+    }
+
+    setLoading(false);
+  }
+
+  function nomeCliente(user) {
+    return (
+      user?.user_metadata?.nome ||
+      user?.user_metadata?.name ||
+      user?.user_metadata?.full_name ||
+      user?.email?.split("@")?.[0] ||
+      "Cliente"
+    );
+  }
+
+  function statusNormalizado() {
+    return String(promocao?.status || "").toLowerCase();
+  }
+
+  function promocaoAtiva() {
+    return ["ativa", "ativo", "aprovada", "aprovado"].includes(
+      statusNormalizado()
+    );
+  }
+
+  function promocaoPausada() {
+    return ["pausada", "desativada", "inativa"].includes(statusNormalizado());
+  }
+
+  function promocaoEsgotada() {
+    const total = Number(promocao?.quantidade_total || 0);
+    const usadas = Number(promocao?.quantidade_resgatada || 0);
+
+    return total > 0 && usadas >= total;
+  }
+
+  function quantidadeRestante() {
+    const total = Number(promocao?.quantidade_total || 0);
+    const usadas = Number(promocao?.quantidade_resgatada || 0);
+
+    if (!total) return null;
+
+    return Math.max(total - usadas, 0);
+  }
+
+  function gerarCodigoCupom() {
+    const parte1 = String(promocao?.id || "PROMO");
+    const parte2 = Math.random().toString(36).substring(2, 7).toUpperCase();
+
+    return `PROMO-${parte1}${parte2}`;
+  }
+
+  function irParaLogin() {
+    const redirect = `/promocao/${id}`;
+    navigate(`/login?redirect=${encodeURIComponent(redirect)}`);
+  }
+
+  async function resgatarCupom() {
+    if (!usuario) {
+      irParaLogin();
       return;
     }
 
-    const codigo = "PROMO-" + Math.floor(1000 + Math.random() * 9000);
-
-    const { error } = await supabase.from("redemptions").insert([
-      {
-        auth_user_id: user.id,
-        promotion_id: promocao.id,
-        codigo,
-        status: "pendente",
-        clicou_whatsapp: true,
-        created_at: new Date(),
-      },
-    ]);
-
-    if (error) {
-      console.log(error);
-      alert(error.message);
+    if (!promocaoAtiva()) {
+      alert("Promoção indisponível.");
       return;
     }
+
+    if (promocaoPausada()) {
+      alert("Promoção pausada.");
+      return;
+    }
+
+    if (promocaoEsgotada()) {
+      alert("Promoção esgotada.");
+      return;
+    }
+
+    if (cupomGerado) {
+      alert("Você já resgatou essa promoção.");
+      return;
+    }
+
+    setResgatando(true);
+
+    const codigo = gerarCodigoCupom();
+
+    const payload = {
+      promotion_id: Number(promocao.id),
+      restaurant_id: Number(promocao.restaurant_id),
+      auth_user_id: usuario.id,
+      cliente_nome: nomeCliente(usuario),
+      cliente_email: usuario.email || "",
+      codigo,
+      status: "ativo",
+      created_at: new Date().toISOString(),
+    };
+
+    const { data: novoCupom, error: erroCupom } = await supabase
+      .from("redemptions")
+      .insert([payload])
+      .select()
+      .single();
+
+    if (erroCupom) {
+      alert(erroCupom.message);
+      setResgatando(false);
+      return;
+    }
+
+    const novaQuantidade = Number(promocao.quantidade_resgatada || 0) + 1;
 
     await supabase
       .from("promotions")
       .update({
-        quantidade_resgatada: resgatada + 1,
+        quantidade_resgatada: novaQuantidade,
       })
       .eq("id", promocao.id);
 
-    const mensagem = encodeURIComponent(
-      `Olá! Resgatei uma promoção pelo app PromoJá.\n\nPromoção: ${promocao.titulo}\nCódigo: ${codigo}\n\nGostaria de fazer meu pedido.`
-    );
+    setCupomGerado(novoCupom);
 
-    window.location.href = `https://wa.me/${whatsappComPais}?text=${mensagem}`;
+    setPromocao((prev) => ({
+      ...prev,
+      quantidade_resgatada: novaQuantidade,
+    }));
+
+    setResgatando(false);
   }
 
-  useEffect(() => {
-    carregarPromocao();
-  }, []);
+  async function compartilharPromocao() {
+    const link = window.location.href;
 
-  if (carregando) {
+    if (navigator.share) {
+      await navigator.share({
+        title: promocao?.titulo || "PromoJá",
+        text: "Olha essa promoção no PromoJá 🔥",
+        url: link,
+      });
+
+      return;
+    }
+
+    await navigator.clipboard.writeText(link);
+    alert("Link copiado.");
+  }
+
+  if (loading) {
     return (
-      <main className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
-        <p className="font-black text-[#FF5A1F]">Carregando promoção...</p>
+      <main className="min-h-screen bg-[#111] flex items-center justify-center">
+        <p className="text-[#FF5A1F] font-black text-xl">
+          Carregando promoção...
+        </p>
       </main>
     );
   }
 
-  if (!promocao) {
-    return (
-      <main className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
-        <p className="font-black">Promoção não encontrada.</p>
-      </main>
-    );
-  }
+  const restante = quantidadeRestante();
 
   return (
-    <main className="min-h-screen bg-[#F7F7F7] pb-10">
-      <div className="relative">
-        <img
-          src={promocao.imagem_url}
-          className="h-80 w-full object-cover"
-          alt={promocao.titulo}
-        />
+    <main className="min-h-screen bg-[#111] text-white pb-36">
+      <div className="relative h-[420px] overflow-hidden">
+        {promocao?.imagem_url ? (
+          <img
+            src={promocao.imagem_url}
+            alt={promocao.titulo}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full bg-[#1C1C1C]" />
+        )}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-[#111]" />
 
-        <Link
-          to="/"
-          className="absolute top-5 left-5 bg-white w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg"
-        >
-          <ArrowLeft size={22} />
-        </Link>
+        <div className="absolute top-5 left-5 right-5 flex justify-between">
+          <button
+            onClick={() => navigate(-1)}
+            className="w-12 h-12 rounded-full bg-black/40 backdrop-blur flex items-center justify-center border border-white/10"
+          >
+            <ArrowLeft size={22} />
+          </button>
 
-        <div className="absolute bottom-6 left-5 right-5">
-          <span className="inline-flex items-center gap-1 text-xs font-black bg-[#FF5A1F] text-white px-3 py-2 rounded-full">
-            <Flame size={14} />
-            {calcularDesconto()}% OFF
-          </span>
-
-          <h1 className="text-3xl font-black text-white mt-3 leading-tight">
-            {promocao.titulo}
-          </h1>
+          <button
+            onClick={compartilharPromocao}
+            className="w-12 h-12 rounded-full bg-black/40 backdrop-blur flex items-center justify-center border border-white/10"
+          >
+            <Share2 size={22} />
+          </button>
         </div>
       </div>
 
-      <section className="-mt-6 relative z-10 bg-white rounded-t-[32px] px-5 pt-6 pb-8">
-        <div className="grid grid-cols-2 gap-3">
-          <div className="bg-[#F7F7F7] rounded-3xl p-4">
-            <Clock className="text-[#FF5A1F]" />
-            <p className="text-xs text-zinc-500 mt-2">Termina em</p>
-            <p className="font-black text-lg">
-              {tempoRestante(promocao.validade)}
-            </p>
-          </div>
-
-          <div className="bg-[#F7F7F7] rounded-3xl p-4">
-            <Ticket className="text-[#FF5A1F]" />
-            <p className="text-xs text-zinc-500 mt-2">Você economiza</p>
-            <p className="font-black text-lg text-[#FF5A1F]">
-              R$ {calcularEconomia().toFixed(2).replace(".", ",")}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5 bg-[#1C1C1C] text-white rounded-3xl p-5">
-          <p className="text-sm text-zinc-300">Preço promocional</p>
-
-          <div className="flex items-end gap-3 mt-2">
-            <p className="text-sm line-through text-zinc-400">
-              R$ {promocao.preco_antigo}
-            </p>
-
-            <p className="text-4xl font-black text-[#FF5A1F]">
-              R$ {promocao.preco_promocional}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5 bg-[#F7F7F7] rounded-3xl p-4 flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl overflow-hidden bg-white shadow-sm border border-zinc-200 flex items-center justify-center">
+      <section className="px-4 -mt-24 relative z-20">
+        <div className="bg-[#1A1A1A] border border-white/5 rounded-[36px] p-5 shadow-2xl">
+          <div className="flex items-center gap-3">
             {restaurante?.logo_url ? (
               <img
                 src={restaurante.logo_url}
                 alt={restaurante.nome}
-                className="w-full h-full object-cover"
+                className="w-16 h-16 rounded-3xl object-cover border border-white/10"
               />
             ) : (
-              <Store className="text-[#FF5A1F]" size={28} />
+              <div className="w-16 h-16 rounded-3xl bg-[#2A2A2A] flex items-center justify-center">
+                <Store className="text-[#FF5A1F]" size={28} />
+              </div>
+            )}
+
+            <div>
+              <p className="font-black text-lg">
+                {restaurante?.nome || "Parceiro PromoJá"}
+              </p>
+
+              <p className="text-sm text-zinc-400">
+                {restaurante?.bairro} • {restaurante?.cidade}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mt-5">
+            <span className="bg-[#FF5A1F] text-white px-4 py-2 rounded-full text-xs font-black flex items-center gap-1">
+              <Flame size={14} />
+              OFERTA EM ALTA
+            </span>
+
+            {promocao.tipo_promocao === "drop" && (
+              <span className="bg-red-500 text-white px-4 py-2 rounded-full text-xs font-black">
+                DROP
+              </span>
+            )}
+
+            {promocaoEsgotada() ? (
+              <span className="bg-zinc-700 text-white px-4 py-2 rounded-full text-xs font-black">
+                ESGOTADA
+              </span>
+            ) : (
+              <span className="bg-green-500 text-white px-4 py-2 rounded-full text-xs font-black">
+                DISPONÍVEL
+              </span>
             )}
           </div>
 
-          <div>
-            <p className="font-black text-lg">
-              {restaurante?.nome || "Restaurante parceiro"}
-            </p>
+          <h1 className="text-4xl font-black mt-6 leading-tight">
+            {promocao.titulo}
+          </h1>
 
-            <p className="text-sm text-zinc-500 flex items-center gap-1 mt-1">
-              <MapPin size={14} />
-              {restaurante?.bairro || "Local"} • {restaurante?.cidade || "Cidade"}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5">
-          <h2 className="font-black text-xl">Sobre a promoção</h2>
-
-          <p className="text-zinc-600 leading-relaxed mt-2">
+          <p className="text-zinc-400 mt-4 text-base leading-relaxed">
             {promocao.descricao}
           </p>
+
+          <div className="mt-7 flex items-end justify-between">
+            <div>
+              <p className="line-through text-zinc-500 text-lg">
+                R$ {promocao.preco_antigo}
+              </p>
+
+              <h2 className="text-6xl font-black text-[#FF5A1F] leading-none">
+                R$ {promocao.preco_promocional}
+              </h2>
+            </div>
+
+            {restante !== null && (
+              <div className="bg-[#111] border border-white/5 px-5 py-4 rounded-3xl text-center">
+                <p className="text-xs text-zinc-500">Cupons restantes</p>
+                <p className="text-3xl font-black text-white">{restante}</p>
+              </div>
+            )}
+          </div>
+
+          {promocao.validade && (
+            <div className="mt-6 bg-[#111] border border-white/5 rounded-3xl p-4 flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-[#FF5A1F]/15 flex items-center justify-center">
+                <Clock3 className="text-[#FF5A1F]" size={22} />
+              </div>
+
+              <div>
+                <p className="text-sm font-black">Válida até</p>
+                <p className="text-sm text-zinc-400">
+                  {new Date(promocao.validade).toLocaleString("pt-BR")}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {cupomGerado && (
+            <div className="mt-6 bg-green-500/10 border border-green-500/20 rounded-[32px] p-5 text-center">
+              <CheckCircle className="mx-auto text-green-400 mb-4" size={42} />
+
+              <p className="font-black text-green-400 text-lg">
+                Cupom resgatado
+              </p>
+
+              <p className="text-zinc-400 text-sm mt-1">
+                Mostre esse código no restaurante
+              </p>
+
+              <div className="mt-5 bg-black rounded-2xl py-5 px-4 border border-green-500/20">
+                <p className="text-3xl font-black tracking-widest">
+                  {cupomGerado.codigo}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="mt-5 bg-[#FFF3EE] border border-[#FFD5C7] rounded-3xl p-4">
-          <p className="font-black text-[#FF5A1F]">
-            {cupomEsgotado()
-              ? "Promoção esgotada"
-              : `Cupons restantes: ${cuponsRestantes() ?? "Ilimitado"}`}
-          </p>
-
-          <p className="text-sm text-zinc-600 mt-1">
-            Cada conta pode resgatar 1 promoção por dia no plano gratuito.
-          </p>
-        </div>
-
-        <button
-          onClick={resgatarPromocao}
-          disabled={cupomEsgotado()}
-          className={`mt-7 w-full py-4 rounded-2xl font-black text-lg flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-all ${
-            cupomEsgotado()
-              ? "bg-zinc-300 text-zinc-500"
-              : "bg-[#FF5A1F] text-white"
-          }`}
+        <Link
+          to="/"
+          className="mt-5 block text-center text-sm font-black text-[#FF5A1F]"
         >
-          <MessageCircle size={22} />
-          {cupomEsgotado()
-            ? "Promoção esgotada"
-            : "Resgatar e chamar no WhatsApp"}
-        </button>
-
-        <p className="text-xs text-zinc-400 text-center mt-3">
-          Ao resgatar, seu cupom será salvo em “Meus Resgates”.
-        </p>
+          Ver outras promoções no PromoJá
+        </Link>
       </section>
+
+      {!cupomGerado && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black via-black/95 to-transparent z-50">
+          <button
+            onClick={resgatarCupom}
+            disabled={
+              resgatando ||
+              promocaoEsgotada() ||
+              promocaoPausada() ||
+              !promocaoAtiva()
+            }
+            className="w-full bg-[#FF5A1F] text-white rounded-3xl py-5 font-black text-lg shadow-[0_0_30px_rgba(255,90,31,0.35)] flex items-center justify-center gap-3 disabled:opacity-60"
+          >
+            {!usuario ? (
+              <>
+                <Lock size={22} />
+                Entrar para resgatar
+              </>
+            ) : resgatando ? (
+              "Resgatando..."
+            ) : promocaoEsgotada() ? (
+              "Promoção esgotada"
+            ) : promocaoPausada() ? (
+              "Promoção pausada"
+            ) : (
+              <>
+                <Ticket size={22} />
+                Resgatar cupom
+              </>
+            )}
+          </button>
+
+          {!usuario && (
+            <p className="text-center text-xs text-zinc-500 mt-3">
+              Você pode visualizar a oferta sem conta, mas precisa entrar para
+              resgatar.
+            </p>
+          )}
+        </div>
+      )}
     </main>
   );
 }
