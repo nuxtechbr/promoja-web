@@ -42,11 +42,16 @@ export default function LoginParceiro() {
   .maybeSingle();
 
       if (admin) {
-        setCarregando(false);
-        navigate("/admin");
-        return;
-      }
+  await supabase.auth.signOut();
 
+  setCarregando(false);
+
+  alert(
+    "Este acesso é exclusivo para restaurantes parceiros."
+  );
+
+  return;
+}
       // PARCEIRO
       const { data: restaurante, error: restauranteError } = await supabase
         .from("restaurants")

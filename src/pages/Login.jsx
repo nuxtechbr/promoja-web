@@ -3,6 +3,11 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Eye, EyeOff, LogIn } from "lucide-react";
 import { supabase } from "../services/supabase";
 
+const ADMIN_EMAILS = [
+  "samuel@usepromoja.com.br",
+  "matheus@usepromoja.com.br",
+];
+
 export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -21,33 +26,38 @@ export default function Login() {
 
     setCarregando(true);
 
+    const emailFormatado = email.trim().toLowerCase();
+
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
+      email: emailFormatado,
       password: senha,
     });
 
-    if (error) {
+    if (error || !data?.user) {
       setCarregando(false);
       alert("E-mail ou senha inválidos.");
       return;
     }
 
     const user = data.user;
+    const emailUsuario = String(
+      user.email || emailFormatado
+    ).toLowerCase();
 
-    // ADMIN
-    const { data: admin } = await supabase
-  .from("admin_users")
-  .select("*")
-  .or(`auth_id.eq.${user.id},email.eq.${user.email}`)
-  .maybeSingle();
-  
-    if (admin) {
+    // BLOQUEAR ADMIN NO LOGIN CLIENTE
+    if (ADMIN_EMAILS.includes(emailUsuario)) {
+      await supabase.auth.signOut();
+
       setCarregando(false);
-      navigate("/admin");
+
+      alert(
+        "Este acesso é exclusivo para clientes."
+      );
+
       return;
     }
 
-    // PARCEIRO
+    // BLOQUEAR PARCEIRO NO LOGIN CLIENTE
     const { data: restaurante } = await supabase
       .from("restaurants")
       .select("*")
@@ -55,12 +65,17 @@ export default function Login() {
       .maybeSingle();
 
     if (restaurante) {
+      await supabase.auth.signOut();
+
       setCarregando(false);
-      navigate("/parceiro/painel");
+
+      alert(
+        "Este acesso é exclusivo para clientes."
+      );
+
       return;
     }
 
-    // CLIENTE NORMAL
     setCarregando(false);
 
     if (redirect) {
@@ -86,7 +101,9 @@ export default function Login() {
             <LogIn size={28} />
           </div>
 
-          <h1 className="text-3xl font-black">Entrar</h1>
+          <h1 className="text-3xl font-black">
+            Entrar
+          </h1>
 
           <p className="text-zinc-300 mt-2">
             {redirect
@@ -95,7 +112,10 @@ export default function Login() {
           </p>
         </div>
 
-        <form onSubmit={fazerLogin} className="mt-6 space-y-4">
+        <form
+          onSubmit={fazerLogin}
+          className="mt-6 space-y-4"
+        >
           <input
             type="email"
             required
@@ -117,10 +137,16 @@ export default function Login() {
 
             <button
               type="button"
-              onClick={() => setMostrarSenha(!mostrarSenha)}
+              onClick={() =>
+                setMostrarSenha(!mostrarSenha)
+              }
               className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500"
             >
-              {mostrarSenha ? <EyeOff size={22} /> : <Eye size={22} />}
+              {mostrarSenha ? (
+                <EyeOff size={22} />
+              ) : (
+                <Eye size={22} />
+              )}
             </button>
           </div>
 
@@ -136,7 +162,9 @@ export default function Login() {
             disabled={carregando}
             className="w-full bg-[#FF5A1F] text-white py-4 rounded-2xl font-black text-lg disabled:opacity-60"
           >
-            {carregando ? "Entrando..." : "Entrar"}
+            {carregando
+              ? "Entrando..."
+              : "Entrar"}
           </button>
 
           <p className="text-center text-sm text-zinc-500">
@@ -144,7 +172,9 @@ export default function Login() {
             <Link
               to={
                 redirect
-                  ? `/cadastro?redirect=${encodeURIComponent(redirect)}`
+                  ? `/cadastro?redirect=${encodeURIComponent(
+                      redirect
+                    )}`
                   : "/cadastro"
               }
               className="font-black text-[#FF5A1F]"
